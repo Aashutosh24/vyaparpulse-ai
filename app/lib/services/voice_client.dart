@@ -176,7 +176,7 @@ class VoiceClient {
   /// pause, and waits briefly for the answer. The mic stays open and idle.
   Future<void> endPush() async {
     if (!_sending || !isConnected) return;
-    _sending = handsFree;;
+    _sending = handsFree;
 
     final answered = events.firstWhere((e) => e.type == 'result');
     _channel?.sink.add(jsonEncode({'action': 'flush'}));

@@ -21,9 +21,10 @@ from .models.transaction import Transaction, TransactionStatus
 log = logging.getLogger(__name__)
 
 DEFAULT_PRODUCTS = [
-    Product(name="Samosa", price=25, aliases=["samosas", "somosa", "samosa chaat"]),
-    Product(name="Tea", price=10, aliases=["chai", "chay", "cutting chai"]),
-    Product(name="Coffee", price=20, aliases=["kaapi", "filter coffee"]),
+    Product(name="Tea", price=10, aliases=["chai", "chay", "cutting chai", "cutting", "masala chai", "masala tea", "hot tea", "milk tea"]),
+    Product(name="Coffee", price=20, aliases=["copy", "copi", "coffe", "cofi", "kopi", "kaapi", "filter coffee", "hot coffee", "black coffee"]),
+    Product(name="Cold Coffee", price=40, aliases=["cold coffees", "called coffee", "coal coffee", "cold copy", "cold copies", "cold copi"]),
+    Product(name="Samosa", price=25, aliases=["samosas", "somosa", "sumosa", "samose", "samos", "some also", "so most", "samosa chaat"]),
 ]
 
 

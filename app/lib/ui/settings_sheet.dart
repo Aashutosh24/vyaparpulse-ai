@@ -18,6 +18,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
       TextEditingController(text: AppConfig.backendUrl);
   String? _result;
   bool _checking = false;
+  bool _voiceEnabled = AppConfig.voiceAnnouncements;
 
   @override
   void dispose() {
@@ -82,6 +83,21 @@ class _SettingsSheetState extends State<SettingsSheet> {
             'An Android emulator reaches the host at 10.0.2.2:8000. '
             'Phone and computer must be on the same Wi-Fi.',
             style: TextStyle(fontSize: 12, color: Palette.chalkDim, height: 1.4),
+          ),
+          const SizedBox(height: 16),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Voice Announcement (Soundbox)',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+            subtitle: const Text(
+                'Announces item and amount aloud when a sale is captured',
+                style: TextStyle(fontSize: 12, color: Palette.chalkDim)),
+            value: _voiceEnabled,
+            activeTrackColor: Palette.marigold,
+            onChanged: (val) {
+              setState(() => _voiceEnabled = val);
+              AppConfig.setVoiceAnnouncements(val);
+            },
           ),
           const SizedBox(height: 16),
           SizedBox(

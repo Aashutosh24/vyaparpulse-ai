@@ -1,14 +1,82 @@
 [
-  { "name": "Tea", "price": 10.0, "aliases": ["chai", "chay", "cutting chai"] },
-  { "name": "Coffee", "price": 20.0, "aliases": ["kaapi", "filter coffee", "toffee"] },
-  { "name": "Cold Coffee", "price": 40.0, "aliases": ["cold coffees", "called coffee", "coal coffee", "cold copy", "cold copies"] },
-  { "name": "Samosa", "price": 25.0, "aliases": ["samosas", "somosa", "sumosa", "samos", "some also", "so most", "summer saw"] },
-  { "name": "Water", "price": 20.0, "aliases": ["water bottle", "bottle", "pani", "mineral water"] },
-  { "name": "Milk", "price": 30.0, "aliases": ["doodh", "milk packet"] },
-  { "name": "Bread", "price": 45.0, "aliases": ["bred", "bread packet"] },
-  { "name": "Egg", "price": 8.0, "aliases": ["eggs", "anda", "ande"] },
-  { "name": "Biscuit", "price": 10.0, "aliases": ["biscuits", "biscuit packet", "parle"] },
-  { "name": "Chips", "price": 20.0, "aliases": ["chip", "chips packet", "wafers"] },
-  { "name": "Sugar", "price": 45.0, "aliases": ["cheeni", "shakkar"] },
-  { "name": "Rice", "price": 60.0, "aliases": ["chawal", "rise"] }
+  {
+    "name": "Tea",
+    "price": 10.0,
+    "aliases": ["chai", "chay", "cutting chai", "cutting", "masala chai", "masala tea", "hot tea", "milk tea", "green tea", "black tea"]
+  },
+  {
+    "name": "Coffee",
+    "price": 20.0,
+    "aliases": ["copy", "copi", "coffe", "cofi", "kopi", "kaapi", "filter coffee", "hot coffee", "black coffee", "toffee"]
+  },
+  {
+    "name": "Cold Coffee",
+    "price": 40.0,
+    "aliases": ["cold coffees", "called coffee", "coal coffee", "cold copy", "cold copies", "cold copi", "ice coffee"]
+  },
+  {
+    "name": "Samosa",
+    "price": 25.0,
+    "aliases": ["samosas", "somosa", "sumosa", "samose", "samos", "some also", "so most", "summer saw", "samosa chaat"]
+  },
+  {
+    "name": "Patties",
+    "price": 20.0,
+    "aliases": ["patty", "pattis", "aloo patty", "paneer patty", "patis"]
+  },
+  {
+    "name": "Lassi",
+    "price": 30.0,
+    "aliases": ["sweet lassi", "mango lassi", "namkeen lassi"]
+  },
+  {
+    "name": "Water",
+    "price": 20.0,
+    "aliases": ["water bottle", "bottle", "pani", "mineral water", "kinley", "bisleri"]
+  },
+  {
+    "name": "Milk",
+    "price": 30.0,
+    "aliases": ["doodh", "milk packet", "amul milk"]
+  },
+  {
+    "name": "Bread",
+    "price": 45.0,
+    "aliases": ["bred", "bread packet", "brown bread", "white bread"]
+  },
+  {
+    "name": "Egg",
+    "price": 8.0,
+    "aliases": ["eggs", "anda", "ande", "boiled egg"]
+  },
+  {
+    "name": "Biscuit",
+    "price": 10.0,
+    "aliases": ["biscuits", "biscuit packet", "biskit", "parle", "parle g", "good day", "marie"]
+  },
+  {
+    "name": "Chips",
+    "price": 20.0,
+    "aliases": ["chip", "chips packet", "wafers", "lays", "kurkure"]
+  },
+  {
+    "name": "Maggie",
+    "price": 35.0,
+    "aliases": ["maggi", "noodles", "veg maggi"]
+  },
+  {
+    "name": "Sandwich",
+    "price": 40.0,
+    "aliases": ["sandwiches", "veg sandwich", "grilled sandwich"]
+  },
+  {
+    "name": "Sugar",
+    "price": 45.0,
+    "aliases": ["cheeni", "shakkar"]
+  },
+  {
+    "name": "Rice",
+    "price": 60.0,
+    "aliases": ["chawal", "rise"]
+  }
 ]

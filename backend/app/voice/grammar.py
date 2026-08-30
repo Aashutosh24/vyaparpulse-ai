@@ -27,14 +27,32 @@ from .wake import HOMOPHONES
 # Everything a sale can be phrased with.
 CORE_WORDS = {
     # money
-    "rupees", "rupee", "rs", "paisa",
+    "rupees", "rupee", "rs", "paisa", "paise",
+    # common STT mishearings of "rupees" that still slip through grammar
+    "rubies", "ruby", "roopees", "rupiah", "rupays", "rupay", "repay",
+    # common drinks & foods (even if not explicitly in user's initial catalog)
+    "tea", "teas", "chai", "chay", "cutting",
+    "coffee", "coffees", "copy", "copi", "coffe", "kaapi", "kopi",
+    "cold", "hot", "ice", "filter",
+    "samosa", "samosas", "somosa", "samose", "patties", "patty",
+    "water", "bottle", "pani", "milk", "doodh", "biscuit", "biscuits",
+    "chips", "maggie", "maggi", "sandwich", "bread", "egg", "eggs", "anda",
     # quantity and rate
     "each", "per", "piece", "pieces", "plate", "plates", "half", "full",
-    "and", "for", "of", "a", "the", "one",
+    "and", "for", "of", "a", "the", "one", "two", "do",
+    # more quantity/serving words merchants use
+    "glass", "glasses", "cup", "cups", "bowl", "bowls", "packet", "packets",
+    "bottle", "bottles", "box", "boxes", "dozen", "pair", "serve", "serving",
+    "small", "medium", "large", "extra",
     # corrections
     "cancel", "undo", "delete", "remove",
-    # politeness that shows up mid-sentence
-    "please", "total", "give", "take", "ok",
+    # politeness/filler that shows up mid-sentence
+    "please", "total", "give", "take", "ok", "okay", "yes", "no",
+    # common Hinglish filler spoken around orders
+    "bhaiya", "bhai", "sir", "madam", "dena", "lena", "karo", "kardo",
+    "wala", "wali", "wale", "aur", "ek", "aur",
+    # particles that float around the amount
+    "only", "just", "more", "less",
 }
 
 NUMBER_WORDS = set(UNITS) | set(TEENS) | set(TENS) | set(SCALES) | set(HINDI)

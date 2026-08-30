@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../config.dart';
 import '../models/transaction.dart';
 import '../services/api_client.dart';
+import '../services/audio_feedback.dart';
 import '../services/voice_client.dart';
 import 'settings_sheet.dart';
 import 'theme.dart';
@@ -19,6 +20,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final _api = ApiClient();
   final _voice = VoiceClient();
+  final _audioFeedback = AudioFeedback();
   final _typeController = TextEditingController();
 
   StreamSubscription<VoiceEvent>? _eventSub;
@@ -37,6 +39,8 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _audioFeedback.enabled = AppConfig.voiceAnnouncements;
+    _audioFeedback.init();
     _eventSub = _voice.events.listen(_onVoiceEvent);
     _modeSub = _voice.modes.listen((m) => setState(() => _mode = m));
     _bootstrap();
@@ -48,6 +52,7 @@ class _HomePageState extends State<HomePage> {
     _poll?.cancel();
     _eventSub?.cancel();
     _modeSub?.cancel();
+    _audioFeedback.dispose();
     _voice.dispose();
     _api.close();
     _typeController.dispose();
@@ -127,8 +132,14 @@ class _HomePageState extends State<HomePage> {
       final t = Transaction.fromJson(txn);
       _say('${t.label} — ₹${_money(t.amount)} pending');
       _toast('${t.label} · ₹${_money(t.amount)}', Palette.paid);
+      _audioFeedback.announceTransaction(
+        item: t.item,
+        quantity: t.quantity,
+        amount: t.amount,
+      );
     } else if (event.data['cancelled'] == true) {
       _say('Cancelled the last entry.');
+      _audioFeedback.announceCancelled();
     } else {
       final transcript = (event.data['transcript'] as String?) ?? '';
       _say('Heard “$transcript” — ${event.data['reason']}');
@@ -198,8 +209,13 @@ class _HomePageState extends State<HomePage> {
     try {
       final result = await _api.sendText(text);
       if (result.accepted && result.transaction != null) {
-        _toast('${result.transaction!.label} · ₹${_money(result.transaction!.amount)}',
-            Palette.paid);
+        final t = result.transaction!;
+        _toast('${t.label} · ₹${_money(t.amount)}', Palette.paid);
+        _audioFeedback.announceTransaction(
+          item: t.item,
+          quantity: t.quantity,
+          amount: t.amount,
+        );
       } else {
         _say('“$text” — ${result.reason}');
       }
@@ -228,6 +244,7 @@ class _HomePageState extends State<HomePage> {
       backgroundColor: Palette.surface,
       builder: (_) => const SettingsSheet(),
     );
+    _audioFeedback.enabled = AppConfig.voiceAnnouncements;
     if (changed == true) {
       await _voice.disconnect();
       await _bootstrap();

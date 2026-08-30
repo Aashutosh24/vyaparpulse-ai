@@ -34,6 +34,22 @@ log = logging.getLogger(__name__)
 OFF, ARMED, LISTENING = "off", "armed", "listening"
 
 
+def _is_complete(txn: Transaction) -> bool:
+    """True when a transaction has item + quantity + amount — nothing more to wait for.
+
+    Used by the adaptive settle timer: a complete transaction gets a short
+    0.5 s window (just enough to catch a stutter) rather than the full
+    COMMAND_SETTLE_SEC, so the register updates almost immediately after the
+    merchant finishes speaking.
+    """
+    return (
+        txn.item is not None
+        and txn.quantity is not None
+        and txn.amount is not None
+        and txn.amount > 0
+    )
+
+
 @dataclass
 class AgentState:
     mode: str = OFF
@@ -477,16 +493,26 @@ class StreamSession:
 
         # Hands-free. The recognizer ends a sentence at every pause, but
         # "seven… samosas" is one order. Keep the words, and only commit once
-        # they add up to a sale.
-        self._pending.append(text)
+        # they add up to a sale AND a short silence confirms nothing more is coming.
+        self._add_fragment(text)
+        # Trim the buffer so it doesn't grow indefinitely across many pauses.
+        if len(self._pending) > 5:
+            self._pending = self._pending[-5:]
         self._confidence = confidence
         joined = " ".join(self._pending).strip()
         command = wake.strip_wake(joined, settings.WAKE_WORD, settings.WAKE_FUZZ).strip()
 
         if not command:
-            # The wake utterance's own final result. Not the order.
+            # The wake utterance's own final result — or a second wake word
+            # while we're already listening.  Commit any existing candidate
+            # first so the previous sale isn't silently dropped, then start
+            # a fresh command window.
+            if self._candidate:
+                self._commit()
+            else:
+                self._pending = []
+                self.recognizer.Reset()  # flush stale audio
             self.listening_until = time.time() + settings.COMMAND_WINDOW_SEC
-            self._pending = []
             self._emit("heard", text=text, used=False)
             return
 
@@ -495,10 +521,26 @@ class StreamSession:
         now = time.time()
 
         if result.ok or result.cancel:
-            self._candidate = command
-            self._commit()
+            # Determine how long to wait before committing.
+            # A "complete" transaction (item + qty + amount all resolved) doesn't
+            # need the full settle window — the merchant has said everything.
+            # An ambiguous/partial parse waits longer in case more words arrive.
+            if result.transaction and _is_complete(result.transaction):
+                settle = 0.5   # fast-path: everything is clear, commit quickly
+            else:
+                settle = settings.COMMAND_SETTLE_SEC  # partial: wait for more
+
+            if command == self._candidate:
+                # Same text as before — recognizer is just re-emitting.
+                # Nudge the timer slightly rather than resetting it fully.
+                if self._settle_at:
+                    self._settle_at = min(self._settle_at, now + settle)
+            else:
+                self._candidate = command
+                self._confidence = confidence
+                self._settle_at = now + settle
         else:
-            # Not a sale yet — "seven" on its own. Wait for the rest.
+            # Not a sale yet — "seven" on its own. Keep the fragments and wait.
             self._candidate = None
             self._settle_at = 0.0
             self.listening_until = now + settings.COMMAND_WINDOW_SEC
@@ -544,11 +586,24 @@ class StreamSession:
         self._confidence = None
         self.listening_until = 0.0
 
+        # Reset the recognizer so stale audio from this command's tail doesn't
+        # bleed into the next one.
+        try:
+            self.recognizer.Reset()
+        except Exception:
+            pass
+
         if command:
             self._handle(command, confidence, "phone")
         if self.wake_enabled:
             self.mode = ARMED
             self._events.append(self.state())
+        else:
+            # Hands-free mode: stay LISTENING but add a brief pause window
+            # (1.5 s) so that the final trailing audio from this command can't
+            # immediately bleed into the next one.  New fragments arriving
+            # during this window reset the window rather than accumulating.
+            self.listening_until = time.time() + 1.5
 
     def _handle(self, text: str, confidence: float | None, source: str) -> None:
         result = self.agent.handle_transcript(
@@ -564,10 +619,20 @@ class StreamSession:
         )
 
     def _open_window(self, reason: str) -> None:
+        # Commit any in-flight candidate before resetting state, so a second
+        # wake word while listening doesn't silently discard the previous sale.
+        if self._candidate:
+            self._commit()
         self._buffering = False
         self._candidate = None
         self._settle_at = 0.0
         self._pending = []
+        # Flush the recognizer so partial audio from ARMED mode doesn't
+        # accidentally prefix the command.
+        try:
+            self.recognizer.Reset()
+        except Exception:
+            pass
         self.mode = LISTENING
         self.listening_until = time.time() + settings.COMMAND_WINDOW_SEC
         self._emit("listening", reason=reason, seconds=settings.COMMAND_WINDOW_SEC)

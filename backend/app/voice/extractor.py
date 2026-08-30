@@ -33,24 +33,41 @@ from ..models.transaction import Transaction, TransactionStatus
 from .numbers import HINDI, SCALES, TEENS, TENS, UNITS, SpokenNumber, find_numbers
 
 # How close a garbled word has to be to a catalog entry to count as that item.
-# "some also" -> "samosas" is the job; "coffee" -> "toffee" is what to avoid.
-FUZZY_ITEM_MIN = 0.66
+FUZZY_ITEM_MIN = 0.55
 
 _NUMBER_WORDS = set(UNITS) | set(TEENS) | set(TENS) | set(SCALES) | set(HINDI)
 
+_PHONETIC_START_EQUIVS = {
+    "c": {"c", "k", "s"},
+    "k": {"k", "c", "q"},
+    "s": {"s", "c", "sh"},
+    "p": {"p", "f", "b"},
+    "f": {"f", "p", "ph", "v"},
+    "t": {"t", "th", "d"},
+    "d": {"d", "t", "th"},
+    "w": {"w", "v", "u"},
+    "v": {"v", "w", "b"},
+    "m": {"m", "n"},
+}
+
 
 def _similar_enough(heard: str, term: str, minimum: float) -> bool:
-    """Fuzzy match with a length guard.
+    """Fuzzy match with a length guard and phonetic sound compatibility.
 
     A mishearing is roughly the same length as the word it replaced —
-    "some also" for "samosas". Without this, "chocolates" scores well enough
-    against "chais" to sell someone a tea.
+    "some also" for "samosas", "copy" for "coffee".
     """
-    if not heard or not term or heard[0] != term[0]:
-        # Mishearings keep the opening sound: "samosa" becomes "some also",
-        # never "masala tea". Without this, long words find long partners.
+    if not heard or not term:
         return False
-    if abs(len(heard) - len(term)) > max(2, 0.35 * max(len(heard), len(term))):
+
+    # Check first letter or phonetic equivalent
+    h0, t0 = heard[0], term[0]
+    if h0 != t0:
+        equivs = _PHONETIC_START_EQUIVS.get(h0, {h0})
+        if t0 not in equivs:
+            return False
+
+    if abs(len(heard) - len(term)) > max(2, 0.40 * max(len(heard), len(term))):
         return False
     return SequenceMatcher(None, heard, term).ratio() >= minimum
 
@@ -58,7 +75,8 @@ def _similar_enough(heard: str, term: str, minimum: float) -> bool:
 CURRENCY_RE = re.compile(
     r"(₹|\brupees?\b|\brupaye?\b|\brupaiya\b|\brupya\b|\brs\.?\b|\bbucks?\b"
     r"|\brepeat\b|\brepeats\b|\brubies\b|\bruby\b|\broopees?\b|\brupiah\b"
-    r"|\brepeated\b|\brupess\b|\bripped\b)",
+    r"|\brepeated\b|\brupess\b|\bripped\b|\brupays?\b|\brepay\b"
+    r"|\bpaisa\b|\bpaise\b|\brupya\b)",
     re.IGNORECASE,
 )
 FOR_RE = re.compile(r"\bfor\b", re.IGNORECASE)
@@ -76,27 +94,56 @@ NOT_AN_ITEM = {
     "and", "the", "for", "of", "at", "to", "a", "an", "is", "it", "that",
     "this", "total", "please", "thanks", "thank", "sir", "madam", "bhaiya",
     "ok", "okay", "yes", "no", "more", "less", "only", "just", "give", "want",
+    # Hinglish filler that floats around orders
+    "kya", "hai", "bhai", "yaar", "aur", "nahi", "dena", "lena", "wala",
+    "wali", "wale", "ek", "do", "jo", "karo", "kardo",
 }
 
 # Words a recognizer produces instead of a digit. Only applied when the next
-# word is a product, so "two samosas for fifty rupees" keeps its "for" while
-# "for samosas" becomes "four samosas".
+# non-filler word is a product term (or for "for/fore/far" which also need
+# position context — see _repair_counts).
 DIGIT_HOMOPHONES = {
-    "why": "five", "fife": "five", "file": "five", "hi": "five",
+    # Hindi / Hinglish numerals
+    "do": "two", "du": "two", "doe": "two", "dough": "two",
+    "ek": "one", "yak": "one", "ik": "one",
+    "teen": "three", "tin": "three",
+    "char": "four", "chaar": "four",
+    "paanch": "five", "panch": "five", "punch": "five",
+    "chhe": "six", "che": "six", "chheh": "six",
+    "saat": "seven", "sat": "seven",
+    "aath": "eight", "aat": "eight",
+    "nau": "nine",
+    "das": "ten", "dus": "ten",
+    # one
+    "wan": "one", "when": "one", "won": "one", "wun": "one",
+    # two
     "too": "two", "to": "two", "tu": "two", "dew": "two", "due": "two",
-    "for": "four", "fore": "four", "far": "four",  # see FOR_LIKE below
-    "tree": "three", "free": "three", "thee": "three",
-    "sex": "six", "sicks": "six", "seeks": "six",
+    "tow": "two",
+    # three
+    "tree": "three", "free": "three", "thee": "three", "trey": "three",
+    # four — handled separately in FOR_LIKE because "for" is also a preposition
+    "for": "four", "fore": "four", "far": "four", "fort": "four", "fir": "four",
+    "oar": "four", "ore": "four",
+    # five
+    "why": "five", "fife": "five", "file": "five", "hi": "five",
+    "wife": "five",
+    # six
+    "sex": "six", "sicks": "six", "seeks": "six", "sax": "six",
+    # seven
     "sever": "seven", "heaven": "seven",
-    "wait": "eight", "eat": "eight",
-    "wine": "nine", "night": "nine", "nain": "nine",
+    # eight
+    "wait": "eight", "eat": "eight", "ate": "eight", "rate": "eight",
+    # nine
+    "wine": "nine", "night": "nine", "nain": "nine", "nigh": "nine",
+    "nye": "nine",
+    # ten
     "tan": "ten", "den": "ten", "then": "ten", "than": "ten",
-    "wan": "one", "when": "one",
 }
 
-# Homophones of "four" that are also ordinary English; only repaired sentence
-# initially.
-FOR_LIKE = {"for", "fore", "far"}
+# Homophones of "four" that are also ordinary English words. These are treated
+# as a count only when they open the sentence OR when the lookahead confirms a
+# product follows — see _repair_counts().
+FOR_LIKE = {"for", "fore", "far", "fort", "fir", "oar", "ore"}
 
 # Things people say that are commands, not purchases.
 CANCEL_RE = re.compile(r"\b(cancel|undo|delete|remove|scratch that|galat)\b", re.IGNORECASE)
@@ -130,14 +177,17 @@ class TransactionExtractor:
     # -- public ----------------------------------------------------------
 
     def extract(self, raw_text: str, confidence: float | None = None) -> ExtractionResult:
-        text = self._repair_counts(" ".join(raw_text.lower().split()))
+        # Normalise first (collapse stutters, strip junk), then repair digit
+        # homophones, then run the rest of the pipeline.
+        normalised = self._normalize_transcript(" ".join(raw_text.lower().split()))
+        text = self._repair_counts(normalised)
         if not text:
             return ExtractionResult(None, "empty transcript")
 
         if CANCEL_RE.search(text):
             return ExtractionResult(None, "cancel command", cancel=True)
 
-        numbers = find_numbers(text)
+        numbers = self._merge_digit_pairs(text, find_numbers(text))
         item = self._find_item(text) or self._guess_item(text, numbers)
         heard = self._find_amount_number(text, numbers, item)
 
@@ -255,32 +305,195 @@ class TransactionExtractor:
             return 1
         return int(value)
 
-    def _repair_counts(self, text: str) -> str:
-        """Turn a misheard count back into a number when a product follows it.
+    # -- transcript normalisation ----------------------------------------
 
-        "why cold coffees" is five cold coffees; "for 700 rupees" is not four
-        of anything, so the lookahead has to be a product and nothing else.
+    @staticmethod
+    def _normalize_transcript(text: str) -> str:
+        """Clean up common STT artefacts before the extractor sees the sentence.
+
+        1. Collapse immediate stutter repetitions: "two two teas" → "two teas".
+        2. Strip leading filler words ("okay yes two teas" → "two teas").
+        3. Remove 'the' inserted between number words
+           ("three the four tea" → "three four tea").
+        4. Expand adjacent bare digit-words into compound tens+units before
+           currency markers: "for five rupees" → "forty five rupees" (= ₹45).
+           STT frequently splits "forty five" into two tokens when each syllable
+           lands in a different audio chunk.
+        """
+        if not text:
+            return text
+
+        # _NUMBER_WORDS is module-level — no rebuild per call.
+
+        # 1. Collapse adjacent identical tokens (stutter)
+        tokens = text.split()
+        deduped: list[str] = []
+        for tok in tokens:
+            if deduped and tok == deduped[-1]:
+                continue
+            deduped.append(tok)
+        tokens = deduped
+
+        # 2. Strip leading pure-filler tokens
+        LEADING_FILLERS = {
+            "ok", "okay", "yes", "please", "give", "take", "hello", "hi",
+            "bhaiya", "bhai", "sir", "madam", "boss", "yaar", "uh", "um",
+            "so", "now", "hey", "right",
+        }
+        while tokens and tokens[0] in LEADING_FILLERS:
+            tokens = tokens[1:]
+
+        # 3. Strip 'the' / 'a' inserted between two number words by the model.
+        #    "three the four tea" → "three four tea"
+        BETWEEN_NUM_FILLERS = {"the", "a", "an"}
+        cleaned: list[str] = []
+        for j, tok in enumerate(tokens):
+            if tok in BETWEEN_NUM_FILLERS:
+                prev_tok = cleaned[-1] if cleaned else ""
+                next_tok = tokens[j + 1] if j + 1 < len(tokens) else ""
+                if prev_tok in _NUMBER_WORDS and next_tok in _NUMBER_WORDS:
+                    continue  # drop the filler
+            cleaned.append(tok)
+        tokens = cleaned
+
+        # 4. Expand adjacent bare unit-words into compound tens+units before
+        #    a currency marker.  Addresses: "for five rupees" → "forty five rupees"
+        #    and "two five rupees" → "twenty five rupees" etc.
+        #
+        #    Rule: if token[i] is a unit-word (value 2-9) AND token[i+1] is also
+        #    a unit-word (value 0-9) AND the word immediately after that is a
+        #    currency marker (or end of meaningful text), replace token[i] with
+        #    its tens equivalent so find_numbers can parse "forty five" → 45.
+        UNIT_TO_TENS = {
+            "two": "twenty",  "to": "twenty",  "too": "twenty",
+            "three": "thirty",
+            "four": "forty",  "for": "forty",  "fore": "forty",
+            "five": "fifty",
+            "six": "sixty",
+            "seven": "seventy",
+            "eight": "eighty",
+            "nine": "ninety",
+        }
+        # digit words that can be the 'units' part (0-9)
+        UNITS_PART = {
+            "zero", "one", "two", "three", "four", "five",
+            "six", "seven", "eight", "nine",
+            "won", "wun", "wan",           # one homophones
+            "to", "too", "tu",             # two homophones (only valid units here)
+        }
+        CURRENCY_STARTERS = {
+            "rupees", "rupee", "rs", "paisa", "paise", "rupay", "rupaye",
+            "rubies", "ruby", "roopees", "bucks", "buck",
+        }
+        expanded: list[str] = list(tokens)
+        for i in range(len(expanded) - 1):
+            t1 = expanded[i]
+            t2 = expanded[i + 1]
+            if t1 not in UNIT_TO_TENS or t2 not in UNITS_PART:
+                continue
+            # Check that the word after t2 is a currency marker or EOS
+            t3 = expanded[i + 2] if i + 2 < len(expanded) else ""
+            if t3 == "" or t3 in CURRENCY_STARTERS:
+                expanded[i] = UNIT_TO_TENS[t1]  # "for" → "forty"
+                # t2 stays as-is; find_numbers sees "forty five" → 45
+        tokens = expanded
+
+        return " ".join(tokens)
+
+    @staticmethod
+    def _merge_digit_pairs(
+        text: str, numbers: list["SpokenNumber"]
+    ) -> list["SpokenNumber"]:
+        """Merge adjacent single-digit SpokenNumbers into compound tens+units.
+
+        After _normalize_transcript runs, most "for five" → "forty five" cases
+        are already handled.  This covers residual cases where two numeric
+        tokens landed in different Vosk sentence boundaries so they were never
+        in the same normalisation pass.
+
+        Rule: if n1.value ∈ [2,9] and n2.value ∈ [0,9] and the two spans are
+        adjacent in the text (only whitespace between them) and the word
+        immediately after n2 is a currency word → merge into n1*10+n2.
+        """
+        if len(numbers) < 2:
+            return numbers
+
+        CURRENCY_STARTERS = {
+            "rupees", "rupee", "rs", "paisa", "paise", "rupay",
+            "rubies", "ruby", "roopees", "bucks",
+        }
+
+        out: list = []
+        i = 0
+        while i < len(numbers):
+            if i < len(numbers) - 1:
+                n1, n2 = numbers[i], numbers[i + 1]
+                adjacent = n2.start - n1.end <= 2  # only whitespace between
+                both_small = 2 <= n1.value <= 9 and 0 <= n2.value <= 9
+                both_word = not n1.from_digits and not n2.from_digits
+                if adjacent and both_small and both_word:
+                    # Check the word right after n2
+                    tail = text[n2.end:].lstrip()
+                    first_tail_word = tail.split()[0] if tail.split() else ""
+                    if first_tail_word in CURRENCY_STARTERS or not tail:
+                        compound = n1.value * 10 + n2.value
+                        out.append(SpokenNumber(float(compound), n1.start, n2.end))
+                        i += 2
+                        continue
+            out.append(numbers[i])
+            i += 1
+        return out
+
+    def _repair_counts(self, text: str) -> str:
+        """Turn a misheard count into the correct digit when a product follows.
+
+        Improvements over the original:
+        * Looks ahead up to 4 tokens through filler/currency words, not just
+          the immediately next token.  "for please samosas" → "four … samosas".
+        * FOR_LIKE tokens (for/fore/far/fort…) are trusted as "four" when a
+          product is found in the lookahead, even mid-sentence.
+        * Pre-compiles all product-term patterns once per call (not per token).
         """
         if not text or not self.products:
             return text
 
-        terms = sorted(
+        # Build and compile term patterns once for the whole sentence.
+        raw_terms = sorted(
             {t for p in self.products for t in p.match_terms()},
             key=len,
             reverse=True,
         )
+        # Compiled patterns: each matches its term at the start of a string.
+        term_patterns = [re.compile(rf"{re.escape(t)}\b") for t in raw_terms]
+
+        # Words that don't break the lookahead scan.
+        SKIP_WORDS = {
+            "please", "me", "a", "the", "some", "of", "and",
+            "bhaiya", "bhai", "sir", "ok", "okay",
+        }
+
+        def _product_follows(tok_list: list[str], start: int, max_skip: int = 4) -> bool:
+            """True if a product term begins within `max_skip` non-filler tokens of `start`."""
+            skip = 0
+            for j in range(start, len(tok_list)):
+                # Build the remaining string only when we have a potential match.
+                tok = tok_list[j]
+                if any(p.match(" ".join(tok_list[j:])) for p in term_patterns):
+                    return True
+                if tok not in SKIP_WORDS:
+                    skip += 1
+                    if skip >= max_skip:
+                        break
+            return False
+
         tokens = text.split()
         for i, token in enumerate(tokens):
             digit = DIGIT_HOMOPHONES.get(token)
             if digit is None:
                 continue
-            # "for" is a real word in "two teas each for fifty rupees". Only
-            # trust it as "four" when it opens the sentence.
-            if token in FOR_LIKE and i != 0:
+            if not _product_follows(tokens, i + 1):
                 continue
-            rest = " ".join(tokens[i + 1:])
-            if any(re.match(rf"{re.escape(t)}\b", rest) for t in terms):
-                tokens[i] = digit
+            tokens[i] = digit
         return " ".join(tokens)
 
     # -- finding the pieces ----------------------------------------------

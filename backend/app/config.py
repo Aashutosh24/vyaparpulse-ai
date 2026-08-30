@@ -34,26 +34,37 @@ class Settings:
         int(os.environ["VOICE_INPUT_DEVICE"]) if os.getenv("VOICE_INPUT_DEVICE") else None
     )
 
-    # Restrict the recognizer to the words a sale can contain. Huge accuracy
-    # win on small models; set to 0 to let it transcribe anything.
-    STT_GRAMMAR: bool = os.getenv("STT_GRAMMAR", "0") == "1"
+    # Restrict the recognizer to the words a sale can contain.
+    # DEFAULT ON: small Indian-English models gain huge accuracy from a restricted
+    # vocabulary — without it the model picks from 200 k words and frequently
+    # chooses the wrong phonetic neighbour. Set STT_GRAMMAR=0 only if you need
+    # the agent to transcribe arbitrary speech (e.g. during development).
+    STT_GRAMMAR: bool = os.getenv("STT_GRAMMAR", "1") == "1"
 
     # --- wake word ------------------------------------------------------
     WAKE_WORD: str = os.getenv("WAKE_WORD", "merc")
     # Small STT models rarely have "merc" in their vocabulary, so near-misses
-    # count too. Tune with WAKE_FUZZ (1.0 = exact match only).
-    WAKE_FUZZ: float = _env_float("WAKE_FUZZ", 0.78)
+    # count too. Lowered from 0.78 → 0.72 to accept more phonetic variation
+    # from accented speakers without increasing false-positive rate.
+    WAKE_FUZZ: float = _env_float("WAKE_FUZZ", 0.72)
     # Seconds to keep capturing a command after the wake word fires.
-    COMMAND_WINDOW_SEC: float = _env_float("COMMAND_WINDOW_SEC", 15.0)
-    COMMAND_SETTLE_SEC: float = _env_float("COMMAND_SETTLE_SEC", 1.6)
+    # Increased to 20 s — merchants often pause between item name and price.
+    COMMAND_WINDOW_SEC: float = _env_float("COMMAND_WINDOW_SEC", 20.0)
+    # How long after a candidate order first parses successfully to wait before
+    # committing, giving the merchant time to add "fifty rupees" after "two teas".
+    # Complete transactions (item+qty+amount all resolved) use a fast 0.5 s path
+    # in agent.py; this longer window only applies to ambiguous/partial parses.
+    COMMAND_SETTLE_SEC: float = _env_float("COMMAND_SETTLE_SEC", 1.0)
     ALLOW_UNKNOWN_ITEMS: bool = os.getenv("ALLOW_UNKNOWN_ITEMS", "1") == "1"
 
     # A counter sale that reads as a lakh is a misheard sentence, not a sale.
     MAX_AMOUNT: float = _env_float("MAX_AMOUNT", 100_000)
 
-    # Vosk reports per-word confidence. Below this, treat the transcript as
-    # noise rather than filing whatever it happened to say.
-    MIN_CONFIDENCE: float = _env_float("MIN_CONFIDENCE", 0.55)
+    # Vosk reports per-word confidence. Small Indian-English models typically
+    # score 0.35–0.60 on accented speech, so the old 0.55 threshold silently
+    # dropped many valid orders. Lowered to 0.40 to match real-world output.
+    # Set MIN_CONFIDENCE=0 to disable the filter entirely during testing.
+    MIN_CONFIDENCE: float = _env_float("MIN_CONFIDENCE", 0.40)
     # --- data -----------------------------------------------------------
     DATA_DIR: Path = _env_path("DATA_DIR", BASE_DIR / "data")
     PRODUCTS_FILE: Path = _env_path("PRODUCTS_FILE", BASE_DIR / "data" / "products.json")

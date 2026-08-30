@@ -9,8 +9,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// network. It's editable in the app and remembered between launches.
 class AppConfig {
   static const _prefsKey = 'backend_url';
+  static const _prefsVoiceKey = 'voice_announcements';
 
   static String backendUrl = defaultUrl;
+  static bool voiceAnnouncements = true;
 
   /// A sensible starting point per platform. An Android emulator reaches the
   /// host machine at 10.0.2.2; a real phone needs the laptop's LAN IP, which
@@ -24,12 +26,23 @@ class AppConfig {
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     backendUrl = prefs.getString(_prefsKey) ?? defaultUrl;
+    voiceAnnouncements = prefs.getBool(_prefsVoiceKey) ?? true;
   }
 
-  static Future<void> save(String url) async {
+  static Future<void> save(String url, {bool? voice}) async {
     backendUrl = normalize(url);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefsKey, backendUrl);
+    if (voice != null) {
+      voiceAnnouncements = voice;
+      await prefs.setBool(_prefsVoiceKey, voiceAnnouncements);
+    }
+  }
+
+  static Future<void> setVoiceAnnouncements(bool enabled) async {
+    voiceAnnouncements = enabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefsVoiceKey, enabled);
   }
 
   /// Accepts "192.168.1.7", "192.168.1.7:8000" or a full URL.
