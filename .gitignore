@@ -1,0 +1,22 @@
+# Python
+backend/venv/
+backend/models/
+backend/data/transactions-*.jsonl
+backend/.env
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Flutter
+app/.dart_tool/
+app/build/
+app/.idea/
+app/pubspec.lock
+app/android/local.properties
+app/ios/Flutter/ephemeral/
+app/macos/Flutter/ephemeral/
+.flutter-plugins-dependencies
+
+# OS
+.DS_Store
+Thumbs.db

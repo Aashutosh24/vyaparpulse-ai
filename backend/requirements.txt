@@ -1,0 +1,18 @@
+# API
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pydantic>=2.6
+python-multipart>=0.0.9      # audio uploads
+
+# Offline speech
+vosk>=0.3.45                 # speech-to-text, runs fully offline
+
+# --- optional, install only if you want them ---------------------------------
+# numpy      speeds up resampling of uploaded audio clips; there is a
+#            pure-Python fallback, so skip it if your Python has no wheel yet.
+# sounddevice  lets the BACKEND machine use its own microphone. Not needed
+#            when the phone or the browser sends the audio, which is the
+#            normal setup. Needs PortAudio + a matching wheel; on Python 3.14
+#            there may not be one yet.
+#
+#   pip install numpy sounddevice

@@ -1,0 +1,14 @@
+[
+  { "name": "Tea", "price": 10.0, "aliases": ["chai", "chay", "cutting chai"] },
+  { "name": "Coffee", "price": 20.0, "aliases": ["kaapi", "filter coffee", "toffee"] },
+  { "name": "Cold Coffee", "price": 40.0, "aliases": ["cold coffees", "called coffee", "coal coffee", "cold copy", "cold copies"] },
+  { "name": "Samosa", "price": 25.0, "aliases": ["samosas", "somosa", "sumosa", "samos", "some also", "so most", "summer saw"] },
+  { "name": "Water", "price": 20.0, "aliases": ["water bottle", "bottle", "pani", "mineral water"] },
+  { "name": "Milk", "price": 30.0, "aliases": ["doodh", "milk packet"] },
+  { "name": "Bread", "price": 45.0, "aliases": ["bred", "bread packet"] },
+  { "name": "Egg", "price": 8.0, "aliases": ["eggs", "anda", "ande"] },
+  { "name": "Biscuit", "price": 10.0, "aliases": ["biscuits", "biscuit packet", "parle"] },
+  { "name": "Chips", "price": 20.0, "aliases": ["chip", "chips packet", "wafers"] },
+  { "name": "Sugar", "price": 45.0, "aliases": ["cheeni", "shakkar"] },
+  { "name": "Rice", "price": 60.0, "aliases": ["chawal", "rise"] }
+]
