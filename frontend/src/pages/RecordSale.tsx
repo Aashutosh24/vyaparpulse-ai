@@ -177,9 +177,15 @@ export function RecordSale() {
           
             {phase === 'idle' ?
           <PrototypeNote>
-                speech recognition is not wired up in this build. Tapping the mic replays a sample
-                sentence so the capture and confirmation flow can be shown.
+                {mode === 'live'
+                  ? 'Microphone is connected to the real voice agent. Hold the button and speak your sale.'
+                  : 'Speech recognition is not wired up in this build. Tapping the mic replays a sample sentence so the capture and confirmation flow can be shown.'}
               </PrototypeNote> :
+          null}
+            {voiceError ?
+          <div className="rounded-vp border border-red-200 bg-red-50 p-3 text-vp-body font-semibold text-red-700">
+                {voiceError}
+              </div> :
           null}
           </div> :
         null}
@@ -205,6 +211,7 @@ export function RecordSale() {
           customerName={customerName}
           ambiguous={ambiguous}
           method={method}
+          voiceConfidence={voiceConfidence}
           onPickCustomer={(name) => {
             setCustomerName(name);
             setAmbiguous(false);

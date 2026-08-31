@@ -11,7 +11,7 @@ import { useApp } from '../contexts/AppContext';
 
 /** A payment timeline where the match state is the headline, not a footnote. */
 export function PaymentActivity() {
-  const { payments, dataState, reviewCount, today, transactions, simulateIncomingPayment } =
+  const { payments, dataState, reviewCount, today, transactions, simulateIncomingPayment, mode } =
   useApp();
   const matched = payments.filter((p) => p.state === 'matched').length;
   const openSale = transactions.find(
@@ -79,8 +79,9 @@ export function PaymentActivity() {
 
         <section aria-label="Prototype behaviour" className="space-y-2.5">
           <PrototypeNote>
-            this build is not connected to a real UPI feed. Payment events are generated inside the
-            app so the matching journey can be shown end to end.
+            {mode === 'live'
+              ? 'Payments are submitted to the backend for matching. Tap the button below to trigger a test payment through the real pipeline.'
+              : 'This build is not connected to a real UPI feed. Payment events are generated inside the app so the matching journey can be shown end to end.'}
           </PrototypeNote>
           {openSale ?
           <Button
@@ -89,7 +90,7 @@ export function PaymentActivity() {
             icon={<Zap size={16} aria-hidden="true" />}
             onClick={simulateIncomingPayment}>
             
-              Simulate {formatRupees(openSale.amount - openSale.receivedAmount)} arriving
+              {mode === 'live' ? 'Submit test payment' : 'Simulate'} {formatRupees(openSale.amount - openSale.receivedAmount)} arriving
             </Button> :
           null}
         </section>

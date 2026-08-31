@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, HelpCircle, Mic, Pencil } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, HelpCircle, Mic, Pencil } from 'lucide-react';
 import { Surface } from '../ui/Surface';
 import { Button } from '../ui/Button';
 import { formatRupees } from '../../utils/format';
@@ -12,6 +12,8 @@ interface SaleReviewCardProps {
   customerName: string | null;
   ambiguous: boolean;
   method: PaymentMethod;
+  /** Actual confidence from the voice agent (0–1). Null = demo/manual (show "High confidence"). */
+  voiceConfidence?: number | null;
   onPickCustomer: (name: string) => void;
   onMethodChange: (method: PaymentMethod) => void;
   onConfirm: () => void;
@@ -24,6 +26,28 @@ const methods: {value: PaymentMethod;label: string;hint: string;}[] = [
 { value: 'cash', label: 'Cash', hint: 'Paid now' },
 { value: 'credit', label: 'Udhaar', hint: 'Pay later' }];
 
+function confidenceBadge(value: number | null | undefined) {
+  // Null/undefined = demo or manual entry — default to "High confidence" to preserve existing demo UX.
+  if (value == null || value >= 0.85) {
+    return {
+      label: 'High confidence',
+      icon: <CheckCircle2 size={14} strokeWidth={2.6} aria-hidden="true" />,
+      className: 'bg-vp-paid-soft text-vp-paid',
+    };
+  }
+  if (value >= 0.60) {
+    return {
+      label: 'Medium confidence',
+      icon: <AlertTriangle size={14} strokeWidth={2.6} aria-hidden="true" />,
+      className: 'bg-amber-50 text-amber-700',
+    };
+  }
+  return {
+    label: 'Please review — speech was unclear',
+    icon: <HelpCircle size={14} strokeWidth={2.6} aria-hidden="true" />,
+    className: 'bg-vp-review-soft text-vp-review',
+  };
+}
 
 /** Nothing is saved until the merchant confirms — and ambiguity is never guessed. */
 export function SaleReviewCard({
@@ -33,6 +57,7 @@ export function SaleReviewCard({
   customerName,
   ambiguous,
   method,
+  voiceConfidence,
   onPickCustomer,
   onMethodChange,
   onConfirm,
@@ -40,15 +65,16 @@ export function SaleReviewCard({
   onRecordAgain
 }: SaleReviewCardProps) {
   const needsChoice = ambiguous && !customerName;
+  const badge = confidenceBadge(voiceConfidence);
 
   return (
     <div className="space-y-3">
       <Surface>
         <div className="flex items-center justify-between gap-3">
           <p className="text-vp-caption font-bold uppercase text-vp-ink-3">I heard</p>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-vp-paid-soft px-2 py-1 text-vp-small font-bold text-vp-paid">
-            <CheckCircle2 size={14} strokeWidth={2.6} aria-hidden="true" />
-            High confidence
+          <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-vp-small font-bold ${badge.className}`}>
+            {badge.icon}
+            {badge.label}
           </span>
         </div>
 

@@ -367,8 +367,18 @@ export function AppProvider({ children, dataState, offline, mode = 'demo', backe
         party: sale.name,
         ref: sale.ref
       });
+
+      // Live mode: also tell the backend about this payment so it persists.
+      if (mode === 'live' && backendClient) {
+        backendClient
+          .submitPayment({ type: 'CREDIT', amount: sale.amount })
+          .catch(() => {
+            // Local state already updated optimistically; backend sync failure
+            // is not critical for the demo — the payment still shows locally.
+          });
+      }
     },
-    [projectImpact]
+    [projectImpact, mode, backendClient]
   );
 
   const addSale = React.useCallback(
@@ -467,8 +477,59 @@ export function AppProvider({ children, dataState, offline, mode = 'demo', backe
       (t) => t.dayLabel === 'Today' && t.amount > t.receivedAmount && t.status !== 'needsReview'
     );
     if (!open) return;
-    matchPaymentToSale(open);
-  }, [matchPaymentToSale]);
+
+    if (mode === 'live' && backendClient) {
+      // In live mode, submit a real raw payment to the backend. If the backend
+      // auto-matches it, we update the local transaction. If not, we push a
+      // needsReview event so the PaymentReview screen can handle it.
+      const message = `₹${open.amount} received from ${open.name}`;
+      backendClient
+        .submitRawPayment({ message, sender: open.name })
+        .then((result) => {
+          if (result.matched_transaction) {
+            // Backend matched — reconcile locally
+            matchPaymentToSale(open);
+          } else {
+            // Backend couldn't match — add as needsReview
+            setPayments((prev) => [
+              {
+                id: result.payment.payment_id,
+                amount: result.payment.amount,
+                senderName: open.name,
+                handle: `${open.name.split(' ')[0].toLowerCase()}@upi`,
+                time: open.time,
+                state: 'needsReview' as const,
+                simulated: true,
+                candidates: [
+                  {
+                    txnId: open.id,
+                    name: open.name,
+                    amount: open.amount,
+                    time: open.time,
+                    reason: 'Amount and timing match this open sale.',
+                  },
+                ],
+              },
+              ...prev,
+            ]);
+            setBanner({
+              kind: 'received',
+              title: 'Payment received',
+              detail: 'Could not auto-match — please review.',
+              amount: result.payment.amount,
+              party: open.name,
+            });
+          }
+        })
+        .catch(() => {
+          // Backend unreachable — fall back to local simulation so the demo
+          // journey isn't broken.
+          matchPaymentToSale(open);
+        });
+    } else {
+      matchPaymentToSale(open);
+    }
+  }, [matchPaymentToSale, mode, backendClient]);
 
   const resolveReview = React.useCallback(
     (paymentId: string, customerName: string) => {
@@ -522,8 +583,18 @@ export function AppProvider({ children, dataState, offline, mode = 'demo', backe
         party: customerName,
         ref: target?.ref
       });
+
+      // Live mode: persist the manual match to the backend.
+      if (mode === 'live' && backendClient && target) {
+        backendClient
+          .manualMatchPayment(paymentId, target.id)
+          .catch(() => {
+            // Optimistic local update already applied.
+            // Backend sync failure is non-critical for the demo.
+          });
+      }
     },
-    [projectImpact]
+    [projectImpact, mode, backendClient]
   );
 
   // ---- Guided demo progress, derived from what has actually happened ----
