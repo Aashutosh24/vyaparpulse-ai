@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "payment.schema.json",
+  "title": "VyaparPulse Payment",
+  "description": "Payment record. NOT specified by an example in the architecture doc — this is a Phase 1 design decision, needed so revenue, payments-received and outstanding amounts can stay distinct (section 5) and to support collection-rate / outstanding-ratio / payment-reliability features (section 6). Replace or reconcile with the actual backend payment model once the real repository is available.",
+  "type": "object",
+  "required": ["payment_id", "transaction_id", "merchant_id", "timestamp", "amount_paid", "status"],
+  "additionalProperties": false,
+  "properties": {
+    "payment_id": {"type": "string", "minLength": 1},
+    "transaction_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Foreign key to the transaction this payment applies to."
+    },
+    "merchant_id": {"type": "string", "minLength": 1},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "amount_paid": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Amount actually collected. May be less than the transaction amount (partial payment)."
+    },
+    "method": {
+      "type": ["string", "null"],
+      "enum": ["cash", "upi", "card", "bank_transfer", "other", null]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["paid", "partial", "pending"],
+      "description": "'paid' = amount_paid >= transaction amount. 'partial' = some but not all collected. 'pending' = no payment received yet."
+    }
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "transaction.schema.json",
+  "title": "VyaparPulse Transaction",
+  "description": "Structured transaction as produced by the Voice AI module or any other valid application workflow (manual entry, etc.). See architecture doc section 24 for the source contract. 'merchant_id' is a Phase 1 addition, not present in the doc's illustrative example, required because every downstream layer (aggregation, features, health, credit) operates per-merchant.",
+  "type": "object",
+  "required": ["transaction_id", "merchant_id", "timestamp", "amount"],
+  "additionalProperties": false,
+  "properties": {
+    "transaction_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique transaction identifier, e.g. 'tx_001'."
+    },
+    "merchant_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identifies which merchant this transaction belongs to. Enables merchant-level isolation (section 5)."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp of the transaction, e.g. '2026-08-28T18:42:15'."
+    },
+    "customer": {
+      "type": ["string", "null"],
+      "description": "Customer name/identifier if known. Optional — voice input may not always capture this."
+    },
+    "items": {
+      "type": "array",
+      "description": "Line items, if itemized. May be empty (per the doc's own example) when voice input only captures an amount.",
+      "items": {
+        "type": "object",
+        "required": ["product", "quantity"],
+        "properties": {
+          "product": {"type": "string", "minLength": 1},
+          "quantity": {"type": "number", "exclusiveMinimum": 0},
+          "unit_price": {"type": ["number", "null"], "minimum": 0}
+        }
+      }
+    },
+    "amount": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "Total transaction value. Must be positive — a zero or negative amount is treated as an impossible value (section 5/21)."
+    },
+    "confidence": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Voice-parsing confidence, when the transaction originated from the Voice AI module. Null for non-voice entry. ML-2 does not need to know the origin (section 24) but the field is preserved if present."
+    }
+  }
+}

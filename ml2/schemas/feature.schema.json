@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "feature.schema.json",
+  "title": "VyaparPulse Merchant Feature Record",
+  "description": "One row = one merchant on one calendar day. This is the Phase 1 output contract — the 'trustworthy feature dataset' section 27 calls the most important Phase 1 deliverable. Covers every required feature listed in section 6.",
+  "type": "object",
+  "required": [
+    "merchant_id", "date",
+    "daily_revenue", "weekly_revenue",
+    "transaction_count", "avg_transaction_value",
+    "revenue_growth_pct",
+    "payment_collection_rate", "outstanding_amount", "outstanding_ratio",
+    "payment_reliability",
+    "peak_hour_revenue_share",
+    "revenue_volatility_7d"
+  ],
+  "properties": {
+    "merchant_id": {"type": "string"},
+    "date": {"type": "string", "format": "date"},
+
+    "daily_revenue": {"type": "number", "minimum": 0, "description": "Sum of transaction amounts for this merchant on this date."},
+    "weekly_revenue": {"type": "number", "minimum": 0, "description": "Trailing 7-day revenue ending on this date."},
+
+    "transaction_count": {"type": "integer", "minimum": 0},
+    "avg_transaction_value": {"type": ["number", "null"], "minimum": 0, "description": "Null when transaction_count is 0."},
+
+    "revenue_growth_pct": {"type": ["number", "null"], "description": "% change in weekly_revenue vs the prior 7-day window. Null when there isn't a prior window yet."},
+
+    "payment_collection_rate": {"type": ["number", "null"], "minimum": 0, "maximum": 1, "description": "amount collected / amount owed, trailing 7 days. Null when there is nothing owed yet."},
+    "outstanding_amount": {"type": "number", "minimum": 0, "description": "Sum of (transaction amount - amount_paid) for still-open transactions."},
+    "outstanding_ratio": {"type": ["number", "null"], "minimum": 0, "description": "outstanding_amount / weekly_revenue. Not capped at 1 — accumulated debt can exceed a single week's revenue, and that's a meaningful risk signal, not an error. Null when weekly_revenue is 0."},
+
+    "payment_reliability": {"type": ["number", "null"], "minimum": 0, "maximum": 1, "description": "Share of trailing-30d transactions that reached 'paid' status."},
+
+    "peak_hour_revenue_share": {"type": ["number", "null"], "minimum": 0, "maximum": 1, "description": "Share of trailing-7d revenue earned in the single busiest hour-of-day bucket."},
+
+    "product_demand": {
+      "type": "object",
+      "description": "Trailing-7d quantity sold per product, when items are itemized. Empty object if no itemized data exists yet.",
+      "additionalProperties": {"type": "number", "minimum": 0}
+    },
+
+    "revenue_volatility_7d": {"type": ["number", "null"], "minimum": 0, "description": "Std. deviation of daily revenue over the trailing 7 days, as a fraction of the mean (coefficient of variation). Null when there are fewer than 2 days of history."}
+  }
+}

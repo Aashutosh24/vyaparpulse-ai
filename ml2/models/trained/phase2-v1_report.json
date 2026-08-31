@@ -1,0 +1,50 @@
+{
+  "model_version": "phase2-v1",
+  "recommendation": "xgboost",
+  "reasoning": "XGBoost beat the baseline on both RMSE (1974.9 vs 3826.3) and MAE (1236.6 vs 2844.5) on held-out validation data.",
+  "dataset_adequacy_note": "43 validation rows clears the 30-row floor used here as a (deliberately modest, not rigorously derived) threshold for trusting the comparison.",
+  "training_period": [
+    "2026-04-08",
+    "2026-07-28"
+  ],
+  "validation_period": [
+    "2026-08-02",
+    "2026-08-26"
+  ],
+  "features_used": [
+    "weekly_revenue",
+    "transaction_count",
+    "avg_transaction_value",
+    "payment_collection_rate",
+    "outstanding_amount",
+    "day_of_week",
+    "revenue_growth_pct"
+  ],
+  "n_train": 221,
+  "n_val": 43,
+  "baseline_metrics": {
+    "mae": 2844.5348837209303,
+    "rmse": 3826.3332043482146,
+    "mape": 25.397886303321187,
+    "mape_rows_used": 43,
+    "mape_rows_excluded": 0,
+    "n": 43
+  },
+  "xgboost_metrics": {
+    "mae": 1236.5541765079943,
+    "rmse": 1974.9383627499922,
+    "mape": 12.777723199885171,
+    "mape_rows_used": 43,
+    "mape_rows_excluded": 0,
+    "n": 43
+  },
+  "xgboost_feature_importances": {
+    "weekly_revenue": 0.08273213356733322,
+    "transaction_count": 0.05232522636651993,
+    "avg_transaction_value": 0.5088095664978027,
+    "payment_collection_rate": 0.08343062549829483,
+    "outstanding_amount": 0.15266436338424683,
+    "day_of_week": 0.023586412891745567,
+    "revenue_growth_pct": 0.09645166248083115
+  }
+}

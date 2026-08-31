@@ -1,0 +1,623 @@
+import React from 'react';
+import {
+  customers as seedCustomers,
+  paymentEvents as seedPayments,
+  transactions as seedTransactions } from
+'../data/mockData';
+import { formatRupees, initialsOf } from '../utils/format';
+import {
+  buildInsights,
+  computeCustomerAccounts,
+  computeForecast,
+  computeHealth,
+  computeProfile,
+  computeSeries,
+  computeToday,
+  computeWeek } from
+'../utils/metrics';
+import type {
+  BusinessHealth,
+  ChangeImpact,
+  CustomerAccount,
+  ForecastSummary,
+  Insight,
+  LineItem,
+  PaymentEvent,
+  TodayTotals,
+  Transaction,
+  TrendPoint,
+  WeekMetrics } from
+'../types';
+import { BackendApiClient } from '../services/backendClient';
+import { mapBackendToFrontendTransaction, mapCanonicalToBackendRequests, type CanonicalSale } from '../services/canonicalTransaction';
+
+/**
+ * 'demo' (default, unchanged behavior): mockData + local simulated timers,
+ * exactly as before this integration.
+ * 'live': sales still update local state instantly (same optimistic UX),
+ * but are also persisted to the real backend in the background, and the
+ * backend's assigned transaction_id becomes authoritative once it returns.
+ * Nothing about the demo path changes when this isn't set to 'live'.
+ */
+export type AppMode = 'demo' | 'live';
+
+/** Same-machine default; override via VITE_BACKEND_URL for a device/emulator (see README addition). */
+const DEFAULT_BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL ?? 'http://127.0.0.1:8000';
+
+
+export type DataState = 'ready' | 'loading' | 'empty' | 'error';
+export type SaveState = 'idle' | 'saving' | 'saved';
+
+export interface Banner {
+  kind: 'saved' | 'received' | 'matched';
+  title: string;
+  detail: string;
+  /** Structured fields so the reconciliation moment can be staged visually. */
+  amount?: number;
+  party?: string;
+  ref?: string;
+}
+
+interface NewSaleInput {
+  customerName: string;
+  items: LineItem[];
+  method: 'upi' | 'cash' | 'credit';
+  source: 'voice' | 'manual';
+}
+
+export interface DemoStep {
+  id: string;
+  label: string;
+  hint: string;
+  route: string;
+  done: boolean;
+  /** Steps that drive real app state rather than just navigating. */
+  action?: 'simulate';
+}
+
+interface AppContextValue {
+  dataState: DataState;
+  offline: boolean;
+  saveState: SaveState;
+  localOnlyCount: number;
+  hasEnoughHistory: boolean;
+  demoSteps: DemoStep[];
+  openSaleAmount: number | null;
+  mode: AppMode;
+  backendSyncError: string | null;
+
+  transactions: Transaction[];
+  payments: PaymentEvent[];
+  customers: CustomerAccount[];
+
+  today: TodayTotals;
+  week: WeekMetrics;
+  series: Record<'7D' | '30D' | '90D', TrendPoint[]>;
+  health: BusinessHealth;
+  forecast: ForecastSummary;
+  insights: Insight[];
+  profile: ReturnType<typeof computeProfile>;
+
+  healthJustChanged: boolean;
+  reviewCount: number;
+  banner: Banner | null;
+  impact: ChangeImpact | null;
+  lastSale: Transaction | null;
+
+  addSale: (input: NewSaleInput) => Transaction;
+  resolveReview: (paymentId: string, customerName: string) => void;
+  simulateIncomingPayment: () => void;
+  dismissBanner: () => void;
+  reload: () => void;
+  resetDemo: () => void;
+}
+
+const AppContext = React.createContext<AppContextValue | null>(null);
+
+const reviewCountOf = (payments: PaymentEvent[]) =>
+payments.filter((p) => p.state === 'needsReview').length;
+
+export function useApp(): AppContextValue {
+  const ctx = React.useContext(AppContext);
+  if (!ctx) throw new Error('useApp must be used inside AppProvider');
+  return ctx;
+}
+
+interface AppProviderProps {
+  children: React.ReactNode;
+  dataState: DataState;
+  offline: boolean;
+  /** Defaults to 'demo' -- existing <AppProvider> call sites need no changes. */
+  mode?: AppMode;
+  backendUrl?: string;
+}
+
+const emptyWeek: WeekMetrics = {
+  revenue: 0,
+  lastWeekRevenue: 0,
+  growthPercent: 0,
+  collectionRate: 0,
+  outstanding: 0,
+  outstandingCustomers: 0,
+  transactionCount: 0,
+  strongestDay: '—',
+  strongestDayValue: 0,
+  variability: 0,
+  daysWithSales: 0,
+  reading: 'Not enough sales recorded yet.'
+};
+
+const emptyHealth: BusinessHealth = {
+  score: 0,
+  previousScore: 0,
+  delta: 0,
+  band: 'Not enough history',
+  factors: [],
+  summary: 'We need a few more days of sales before scoring your business.',
+  why: 'Business Health needs at least a week of recorded sales and payments.',
+  action: 'Keep recording sales and this unlocks on its own.'
+};
+
+const emptyForecast: ForecastSummary = {
+  low: 0,
+  expected: 0,
+  high: 0,
+  confidence: 'Low',
+  confidenceReason: 'There is not enough history to predict your cash flow yet.',
+  basis: 'A forecast needs at least two weeks of recorded sales.',
+  action: 'Keep recording sales to unlock this.',
+  series: []
+};
+
+export function AppProvider({ children, dataState, offline, mode = 'demo', backendUrl }: AppProviderProps) {
+  const empty = dataState === 'empty';
+  const [transactions, setTransactions] = React.useState<Transaction[]>(
+    empty ? [] : seedTransactions
+  );
+  const [payments, setPayments] = React.useState<PaymentEvent[]>(empty ? [] : seedPayments);
+  const backendClient = React.useMemo(
+    () => (mode === 'live' ? new BackendApiClient(backendUrl ?? DEFAULT_BACKEND_URL) : null),
+    [mode, backendUrl]
+  );
+  const [backendSyncError, setBackendSyncError] = React.useState<string | null>(null);
+  const [banner, setBanner] = React.useState<Banner | null>(null);
+  // Live mode: replace the mock-seeded ledger with the real backend's data
+  // once, on mount. Demo mode is completely untouched by this block.
+  React.useEffect(() => {
+    if (mode !== 'live' || !backendClient) return;
+    let cancelled = false;
+    backendClient
+      .listTransactions({ limit: 200 })
+      .then((rows) => {
+        if (cancelled) return;
+        setTransactions(rows.map(mapBackendToFrontendTransaction) as Transaction[]);
+        setBackendSyncError(null);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        // Do NOT fall back to mock transactions here -- showing demo data
+        // labeled as real would be exactly the fabrication this integration
+        // must avoid. Empty + a visible error is the honest state.
+        setTransactions([]);
+        setBackendSyncError(err instanceof Error ? err.message : 'Could not reach the backend.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, backendClient]);
+
+
+  const [impact, setImpact] = React.useState<ChangeImpact | null>(null);
+  const [lastSale, setLastSale] = React.useState<Transaction | null>(null);
+  const [saveState, setSaveState] = React.useState<SaveState>('idle');
+  const [healthJustChanged, setHealthJustChanged] = React.useState(false);
+  const [nonce, setNonce] = React.useState(0);
+  const timers = React.useRef<number[]>([]);
+
+  // Delayed handlers (the payment lands seconds after the sale) must read the
+  // latest ledger, not the one captured when they were created.
+  const txnsRef = React.useRef(transactions);
+  const paymentsRef = React.useRef(payments);
+  React.useEffect(() => {
+    txnsRef.current = transactions;
+    paymentsRef.current = payments;
+  }, [transactions, payments]);
+
+  React.useEffect(() => {
+    setTransactions(empty ? [] : seedTransactions);
+    setPayments(empty ? [] : seedPayments);
+    setBanner(null);
+    setImpact(null);
+    setLastSale(null);
+    setSaveState('idle');
+  }, [empty, nonce]);
+
+  React.useEffect(
+    () => () => {
+      timers.current.forEach((t) => window.clearTimeout(t));
+    },
+    []
+  );
+
+  // ---- Single derivation pass. Every screen reads these. ----
+  const today = React.useMemo(() => computeToday(transactions), [transactions]);
+  const week = React.useMemo(
+    () => empty ? emptyWeek : computeWeek(transactions, today),
+    [empty, transactions, today]
+  );
+  const series = React.useMemo(
+    () => empty ? { '7D': [], '30D': [], '90D': [] } : computeSeries(today),
+    [empty, today]
+  );
+  const health = React.useMemo(
+    () => empty ? emptyHealth : computeHealth(week, today),
+    [empty, week, today]
+  );
+  const forecast = React.useMemo(
+    () => empty ? emptyForecast : computeForecast(today, week),
+    [empty, today, week]
+  );
+  const insights = React.useMemo(
+    () => empty ? [] : buildInsights(today, week, forecast),
+    [empty, today, week, forecast]
+  );
+  const customers = React.useMemo(
+    () => empty ? [] : computeCustomerAccounts(seedCustomers, transactions),
+    [empty, transactions]
+  );
+  const profile = React.useMemo(() => computeProfile(week, health), [week, health]);
+
+  // Flash the score when a reconciliation moves it.
+  const prevScore = React.useRef(health.score);
+  React.useEffect(() => {
+    if (prevScore.current !== health.score) {
+      prevScore.current = health.score;
+      setHealthJustChanged(true);
+      const t = window.setTimeout(() => setHealthJustChanged(false), 6000);
+      timers.current.push(t);
+    }
+  }, [health.score]);
+
+  const reviewCount = reviewCountOf(payments);
+
+  /**
+   * Works out exactly which merchant-facing figures an action moves, before
+   * it is applied, so the UI can show the causal before → after.
+   */
+  const projectImpact = React.useCallback(
+    (
+    current: Transaction[],
+    nextTransactions: Transaction[],
+    reason: string,
+    saleRef?: string)
+    : ChangeImpact => {
+      const beforeToday = computeToday(current);
+      const afterToday = computeToday(nextTransactions);
+      const beforeWeek = computeWeek(current, beforeToday);
+      const afterWeek = computeWeek(nextTransactions, afterToday);
+      const beforeHealth = computeHealth(beforeWeek, beforeToday);
+      const afterHealth = computeHealth(afterWeek, afterToday);
+
+      const rows: ChangeImpact['rows'] = [];
+      if (beforeToday.pending !== afterToday.pending) {
+        rows.push({
+          label: 'Pending',
+          before: formatRupees(beforeToday.pending),
+          after: formatRupees(afterToday.pending)
+        });
+      }
+      if (beforeToday.collectionRate !== afterToday.collectionRate) {
+        rows.push({
+          label: 'Collected',
+          before: `${beforeToday.collectionRate}%`,
+          after: `${afterToday.collectionRate}%`
+        });
+      }
+      if (beforeHealth.score !== afterHealth.score) {
+        rows.push({
+          label: 'Health',
+          before: String(beforeHealth.score),
+          after: String(afterHealth.score)
+        });
+      }
+      return { reason, saleRef, rows };
+    },
+    []
+  );
+
+  /**
+   * PROTOTYPE BEHAVIOUR: there is no UPI integration. This generates the
+   * payment event that a real UPI feed would deliver, so the reconciliation
+   * journey can be demonstrated end to end. Events are flagged `simulated`.
+   */
+  const matchPaymentToSale = React.useCallback(
+    (sale: Transaction) => {
+      const current = txnsRef.current;
+      const nextTransactions = current.map((t): Transaction =>
+      t.id === sale.id ? { ...t, status: 'paid', receivedAmount: t.amount } : t
+      );
+
+      setImpact(
+        projectImpact(
+          current,
+          nextTransactions,
+          'Payment reliability improved — this sale is now collected.',
+          sale.ref
+        )
+      );
+      setTransactions(nextTransactions);
+      setPayments((prev) => [
+      {
+        id: `p-${sale.id}`,
+        amount: sale.amount,
+        senderName: sale.name,
+        handle: `${sale.name.split(' ')[0].toLowerCase()}@upi`,
+        time: sale.time,
+        state: 'matched',
+        matchedRef: sale.ref,
+        simulated: true
+      },
+      ...prev]
+      );
+      setBanner({
+        kind: 'received',
+        title: 'Payment received',
+        detail: `Matched automatically to sale ${sale.ref}`,
+        amount: sale.amount,
+        party: sale.name,
+        ref: sale.ref
+      });
+    },
+    [projectImpact]
+  );
+
+  const addSale = React.useCallback(
+    (input: NewSaleInput) => {
+      const amount = input.items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
+      const id = `t-${Date.now()}`;
+      const known = seedCustomers.find(
+        (c) => c.name.toLowerCase() === input.customerName.toLowerCase()
+      );
+      const sale: Transaction = {
+        id,
+        ref: `#${1043 + Math.floor(Math.random() * 5)}`,
+        customerId: known?.id ?? 'unassigned',
+        name: input.customerName,
+        initials: known?.initials ?? initialsOf(input.customerName),
+        items: input.items,
+        amount,
+        receivedAmount: input.method === 'cash' ? amount : 0,
+        time: new Date().toLocaleTimeString('en-IN', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        }),
+        dayLabel: 'Today',
+        status: input.method === 'cash' ? 'paid' : 'pending',
+        method: input.method,
+        syncedOffline: offline
+      };
+
+      setTransactions((prev) => [sale, ...prev]);
+      setLastSale(sale);
+      setSaveState('saving');
+      timers.current.push(
+        window.setTimeout(() => setSaveState('saved'), 700),
+        window.setTimeout(() => setSaveState('idle'), 5000)
+      );
+      setBanner({
+        kind: 'saved',
+        title: 'Sale recorded',
+        detail: offline ?
+        'Saved on this device. Matching resumes when you reconnect.' :
+        input.method === 'cash' ?
+        'Cash received and closed.' :
+        'Waiting for the payment to arrive.',
+        amount,
+        party: sale.name,
+        ref: sale.ref
+      });
+
+      if (mode === 'live' && backendClient && !offline) {
+        // Backend is single-item-per-transaction (see canonicalTransaction.ts
+        // gap #2) -- one POST per line item, reconciled back onto the SAME
+        // local optimistic card by matching on the temp id below.
+        const canonical: CanonicalSale = {
+          items: input.items,
+          amount,
+          customerName: input.customerName,
+          status: input.method === 'cash' ? 'paid' : 'pending',
+          timestamp: new Date().toISOString(),
+          source: input.source
+        };
+        const requests = mapCanonicalToBackendRequests(canonical);
+        Promise.all(requests.map((r) => backendClient!.createTransaction(r))).
+        then((created) => {
+          const primary = created[0];
+          if (!primary) return;
+          setTransactions((prev) =>
+          prev.map((t) => t.id === id ? { ...t, id: primary.transaction_id, ref: `#${primary.transaction_id.slice(0, 6).toUpperCase()}`, syncedOffline: false } : t)
+          );
+          setBackendSyncError(null);
+        }).
+        catch((err) => {
+          // Local card stays visible (still true that the merchant recorded
+          // a sale) -- just flagged as not yet synced, honestly, rather than
+          // silently retried forever or silently dropped.
+          setTransactions((prev) =>
+          prev.map((t) => t.id === id ? { ...t, syncedOffline: true } : t)
+          );
+          setBackendSyncError(err instanceof Error ? err.message : 'Could not save this sale to the backend.');
+        });
+      }
+
+      if (input.method === 'upi' && !offline) {
+        const t = window.setTimeout(() => matchPaymentToSale(sale), 3400);
+        timers.current.push(t);
+      }
+
+      return sale;
+    },
+    [offline, matchPaymentToSale, mode, backendClient]
+  );
+
+  /** Manual trigger for the same simulated payment, for walking through the demo. */
+  const simulateIncomingPayment = React.useCallback(() => {
+    const open = txnsRef.current.find(
+      (t) => t.dayLabel === 'Today' && t.amount > t.receivedAmount && t.status !== 'needsReview'
+    );
+    if (!open) return;
+    matchPaymentToSale(open);
+  }, [matchPaymentToSale]);
+
+  const resolveReview = React.useCallback(
+    (paymentId: string, customerName: string) => {
+      const current = txnsRef.current;
+      const payment = paymentsRef.current.find((p) => p.id === paymentId);
+      if (!payment) return;
+      const known = seedCustomers.find((c) => c.name.toLowerCase() === customerName.toLowerCase());
+      const target =
+      current.find((t) => t.status === 'needsReview' && t.amount === payment.amount) ??
+      current.find((t) => t.status === 'needsReview');
+
+      const nextTransactions = current.map((t): Transaction =>
+      target && t.id === target.id ?
+      {
+        ...t,
+        status: 'paid',
+        receivedAmount: t.amount,
+        name: customerName,
+        initials: known?.initials ?? initialsOf(customerName),
+        customerId: known?.id ?? t.customerId
+      } :
+      t
+      );
+
+      setImpact(
+        projectImpact(
+          current,
+          nextTransactions,
+          `The payment now has a sale attached, so ${customerName}'s balance and your collection rate are correct.`,
+          target?.ref
+        )
+      );
+      setTransactions(nextTransactions);
+      setPayments((prev) =>
+      prev.map((p): PaymentEvent =>
+      p.id === paymentId ?
+      {
+        ...p,
+        state: 'matched',
+        senderName: customerName,
+        matchedRef: target?.ref ?? p.matchedRef
+      } :
+      p
+      )
+      );
+      setBanner({
+        kind: 'matched',
+        title: 'Payment matched',
+        detail: target ? `Confirmed against ${customerName} · sale ${target.ref}` : `Confirmed against ${customerName}`,
+        amount: payment.amount,
+        party: customerName,
+        ref: target?.ref
+      });
+    },
+    [projectImpact]
+  );
+
+  // ---- Guided demo progress, derived from what has actually happened ----
+  const baselineScore = React.useRef(health.score);
+  React.useEffect(() => {
+    baselineScore.current = health.score;
+    // Re-baseline only when the whole prototype is reset.
+  }, [nonce, empty]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const openSale = transactions.find(
+    (t) => t.dayLabel === 'Today' && t.amount > t.receivedAmount && t.status !== 'needsReview'
+  );
+  const recordedSale = lastSale ? transactions.find((t) => t.id === lastSale.id) : undefined;
+
+  const unresolved = payments.find((p) => p.state === 'needsReview');
+
+  const demoSteps: DemoStep[] = [
+  {
+    id: 'record',
+    label: 'Record a sale',
+    hint: 'Speak it or tap it in — takes seconds',
+    route: '/sell',
+    done: Boolean(lastSale)
+  },
+  {
+    id: 'payment',
+    label: 'Receive a payment',
+    hint: 'Generates the payment a UPI feed would deliver',
+    route: '/payments',
+    action: 'simulate',
+    done: payments.some((p) => p.simulated && p.state === 'matched')
+  },
+  {
+    id: 'reconcile',
+    label: 'Reconcile automatically',
+    hint: 'The sale closes itself in your ledger',
+    route: '/ledger',
+    done: Boolean(recordedSale && recordedSale.status === 'paid')
+  },
+  {
+    id: 'review',
+    label: 'Resolve an ambiguous payment',
+    hint: 'Two sales look alike — you decide, not the app',
+    route: unresolved ? `/payments/${unresolved.id}` : '/payments',
+    done: reviewCountOf(payments) === 0
+  },
+  {
+    id: 'impact',
+    label: 'See the business impact',
+    hint: 'Health, insights and forecast recompute',
+    route: '/insights',
+    done: health.score !== baselineScore.current
+  }];
+
+
+  const value: AppContextValue = {
+    dataState,
+    offline,
+    saveState,
+    localOnlyCount: transactions.filter((t) => t.syncedOffline).length,
+    hasEnoughHistory: !empty && week.daysWithSales >= 3,
+    demoSteps,
+    openSaleAmount: openSale ? openSale.amount - openSale.receivedAmount : null,
+    mode,
+    backendSyncError,
+
+    transactions,
+    payments,
+    customers,
+
+    today,
+    week,
+    series,
+    health,
+    forecast,
+    insights,
+    profile,
+
+    healthJustChanged,
+    reviewCount,
+    banner,
+    impact,
+    lastSale,
+
+    addSale,
+    resolveReview,
+    simulateIncomingPayment,
+    dismissBanner: () => {
+      setBanner(null);
+      setImpact(null);
+    },
+    reload: () => setNonce((n) => n + 1),
+    resetDemo: () => setNonce((n) => n + 1)
+  };
+
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+}

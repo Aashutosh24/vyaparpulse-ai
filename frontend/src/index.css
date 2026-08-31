@@ -1,0 +1,176 @@
+/* --- MANAGED FONT IMPORTS START (do not edit manually) --- */
+/* INTERNAL USE NAME: Heading */
+@import url('https://fonts.googleapis.com/css2?family=Geist:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+/* INTERNAL USE NAME: Mono */
+@import url('https://fonts.googleapis.com/css2?family=Geist+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+/* --- MANAGED FONT IMPORTS END --- */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+/* @import url() FONT IMPORTS MUST ALWAYS BE AT THE VERY TOP OF THIS FILE, ABOVE THE TAILWIND IMPORTS — DO NOT DELETE THIS COMMENT */
+
+/* CRITICAL: THE FOLLOWING TAILWIND IMPORTS MUST NEVER BE DELETED OR REORDERED — DO NOT DELETE THIS COMMENT */
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* END TAILWIND IMPORTS — ALL OTHER CSS MUST GO BELOW THIS LINE */
+
+@custom-variant dark (&:is(.dark *));
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+  /* ---------------------------------------------------------------
+     VyaparPulse tokens — warm, high-contrast, outdoor-readable.
+     Trust + growth = deep green. Heritage gold kept as accent only.
+     --------------------------------------------------------------- */
+  --vp-bg: #f6f4ef;
+  --vp-surface: #ffffff;
+  --vp-surface-2: #f0ece4;
+  --vp-line: #e3ddd2;
+  --vp-line-strong: #cfc7b8;
+  --vp-ink: #191713;
+  --vp-ink-2: #56514a;
+  --vp-ink-3: #7d766c;
+  --vp-ink-inv: #ffffff;
+  --vp-brand: #0d5c46;
+  --vp-brand-strong: #094334;
+  --vp-brand-soft: #e2efea;
+  --vp-brand-line: #bcd8cf;
+  --vp-brand-mid: #79a89b;
+  --vp-brand-light: #c9dcd6;
+  --vp-gold: #e39a1c;
+  --vp-gold-ink: #8a5600;
+  --vp-gold-soft: #fbf1dc;
+  --vp-gold-line: #eed5a3;
+  --vp-paid: #146c46;
+  --vp-paid-soft: #e4f1e9;
+  --vp-paid-line: #b9dcc8;
+  --vp-pending: #8a5600;
+  --vp-pending-soft: #faf0dc;
+  --vp-pending-line: #e8d3a8;
+  --vp-review: #a8410c;
+  --vp-review-soft: #fbeae1;
+  --vp-review-line: #eec2a8;
+  --vp-danger: #a3201a;
+  --vp-danger-soft: #fbe9e7;
+  --vp-danger-line: #eebeb9;
+  --vp-insight: #3c4a94;
+  --vp-insight-soft: #eaecf8;
+  --vp-insight-line: #c6cced;
+  --vp-forecast: #6a4a9c;
+  --vp-forecast-soft: #f0eaf9;
+  --vp-forecast-line: #d4c4ea;
+}
+:root.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.145 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: oklch(0.269 0 0);
+  --input: oklch(0.269 0 0);
+  --ring: oklch(0.439 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.269 0 0);
+  --sidebar-ring: oklch(0.439 0 0);
+}
+@layer base {
+  * {
+    @apply border-border outline-ring;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+/* Currency and metric figures must align in columns and lists. */
+.vp-num {
+  font-family: 'Plus Jakarta Sans', Geist, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+/* Focus visibility is part of the default experience, not an add-on. */
+.vp-focus:focus-visible {
+  outline: 2px solid var(--vp-brand);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+.vp-scroll {
+  scrollbar-width: none;
+}
+.vp-scroll::-webkit-scrollbar {
+  display: none;
+}
+/* Shared press feedback so every tappable surface responds the same way. */
+.vp-press {
+  transition:
+    transform 0.12s ease,
+    background-color 0.12s ease;
+}
+.vp-press:active {
+  transform: scale(0.985);
+}
+/* Motion is communication, never decoration — so it steps aside on request. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .vp-press:active {
+    transform: none;
+  }
+}
