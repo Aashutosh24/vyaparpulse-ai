@@ -1,5 +1,6 @@
 import { history, store } from '../data/mockData';
 import { formatCompactRupees, formatRupees } from './format';
+import type { MLForecast } from '../services/mlAdapter';
 import type {
   BusinessHealth,
   Customer,
@@ -213,8 +214,59 @@ export function computeHealth(week: WeekMetrics, today: TodayTotals): BusinessHe
   };
 }
 
-export function computeForecast(today: TodayTotals, week: WeekMetrics): ForecastSummary {
+export function computeForecast(today: TodayTotals, week: WeekMetrics, ml: MLForecast | null): ForecastSummary {
   const days = computeSeries(today)['7D'];
+  
+  if (ml && ml.source === 'live') {
+    if (ml.low !== null && ml.high !== null && ml.confidenceLabel !== null) {
+      const expected = ml.expectedRevenue7d;
+      const low = ml.low;
+      const high = ml.high;
+      const confidence = ml.confidenceLabel;
+      
+      const historicSum = days.reduce((acc, d) => acc + d.value, 0) || 1;
+      const scale = expected / historicSum;
+      const lowScale = low / expected;
+      const highScale = high / expected;
+
+      const series = days.map((d) => {
+          const dExpected = Math.round(d.value * scale);
+          return {
+            label: d.label,
+            expected: dExpected,
+            low: Math.round(dExpected * lowScale),
+            high: Math.round(dExpected * highScale)
+          };
+      });
+
+      return {
+        low,
+        expected,
+        high,
+        confidence,
+        confidenceReason: confidence === 'High' 
+          ? `Your daily sales are very regular, so this range is tight. ${store.activeMonths} months of history sits behind it.`
+          : `Your sales vary day to day, and ${store.activeMonths} months is still a short record — treat this as a range, not a promise.`,
+        basis: 'Powered by VyaparPulse AI',
+        action: `Safe to plan purchases up to ${formatRupees(low)} this week.`,
+        series
+      };
+    } else {
+      // Live mode but insufficient data from ML
+      return {
+        low: 0,
+        expected: 0,
+        high: 0,
+        confidence: 'Low',
+        confidenceReason: 'There is not enough history to predict your cash flow yet.',
+        basis: 'A forecast needs at least two weeks of recorded sales.',
+        action: 'Keep recording sales to unlock this.',
+        series: []
+      };
+    }
+  }
+  
+  // Fallback to mock / hardcoded logic ONLY if no live ML data
   const expected = round1k(week.revenue * 1.02);
   const low = round1k(expected * 0.955);
   const high = round1k(expected * 1.06);

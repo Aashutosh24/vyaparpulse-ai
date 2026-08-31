@@ -114,3 +114,27 @@ class PaymentMatchIn(BaseModel):
     skipped without matching.
     """
     transaction_id: Optional[str] = None
+
+
+# ------------------------------ Intelligence --------------------------------
+
+class IntelligenceForecast(BaseModel):
+    next_7_days_revenue: Optional[float] = None
+    confidence: Optional[float] = None
+    range: Optional[float] = None
+
+class IntelligenceHealth(BaseModel):
+    revenue_growth_pct: Optional[float] = None
+    payment_collection_rate: Optional[float] = None
+    outstanding_ratio: Optional[float] = None
+    revenue_volatility_7d: Optional[float] = None
+    payment_reliability: Optional[float] = None
+
+class IntelligenceInsights(BaseModel):
+    product_demand: dict = Field(default_factory=dict)
+
+class IntelligenceResponse(BaseModel):
+    status: str
+    forecast: IntelligenceForecast
+    health: IntelligenceHealth
+    insights: IntelligenceInsights

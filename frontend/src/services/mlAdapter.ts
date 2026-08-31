@@ -74,11 +74,6 @@ export class MockMLAdapter implements MLAdapter {
   }
 }
 
-/**
- * What this becomes once ML_CHANGE_REQUEST.md's endpoint exists. Not wired
- * up or called anywhere yet -- included so the swap is a one-line change,
- * not a rewrite, the day the backend adds it.
- */
 export class LiveMLAdapter implements MLAdapter {
   private backendBaseUrl: string;
 
@@ -88,8 +83,43 @@ export class LiveMLAdapter implements MLAdapter {
 
   async getForecast(merchantId?: string): Promise<MLForecast> {
     const params = merchantId ? `?merchant_id=${encodeURIComponent(merchantId)}` : '';
-    const res = await fetch(`${this.backendBaseUrl}/ml/forecast${params}`);
+    const res = await fetch(`${this.backendBaseUrl}/transactions/intelligence/ml2${params}`);
     if (!res.ok) throw new Error(`ML forecast endpoint returned ${res.status}`);
-    return res.json();
+    const data = await res.json();
+    
+    // Fallbacks if insufficient data or missing forecast fields
+    if (data.status === 'insufficient_data' || !data.forecast || data.forecast.next_7_days_revenue === null) {
+       return {
+          source: 'live',
+          expectedRevenue7d: 0,
+          low: null,
+          high: null,
+          confidenceLabel: null,
+          modelVersion: 'ml-2',
+          asOfDate: new Date().toISOString()
+       };
+    }
+    
+    const expected = data.forecast.next_7_days_revenue;
+    const confScore = data.forecast.confidence ?? 0.8; 
+    let confidenceLabel: 'High' | 'Moderate' | 'Low' = 'Moderate';
+    if (confScore >= 0.7) confidenceLabel = 'High';
+    else if (confScore >= 0.4) confidenceLabel = 'Moderate';
+    else confidenceLabel = 'Low';
+    
+    // if range is null, use the measured MAE 1237 from PHASE_2_FORECASTING.md
+    const range = data.forecast.range ?? 1237;
+    const low = Math.max(0, expected - range);
+    const high = expected + range;
+    
+    return {
+      source: 'live',
+      expectedRevenue7d: expected,
+      low,
+      high,
+      confidenceLabel,
+      modelVersion: 'ml-2',
+      asOfDate: new Date().toISOString()
+    };
   }
 }

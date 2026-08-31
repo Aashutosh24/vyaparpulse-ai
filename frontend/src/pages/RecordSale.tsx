@@ -21,7 +21,7 @@ import type { ChangeImpact, LineItem, PaymentMethod, Transaction } from '../type
 type Phase = 'idle' | 'listening' | 'parsing' | 'review' | 'manual' | 'saved';
 
 const TRANSCRIPT = sampleParsedSale.transcript;
-const DEFAULT_VOICE_URL = (import.meta as any).env?.VITE_VOICE_URL ?? 'http://127.0.0.1:8000';
+const DEFAULT_VOICE_URL = (import.meta as any).env?.VITE_VOICE_URL ?? 'http://127.0.0.1:8203';
 
 export function RecordSale() {
   const navigate = useNavigate();

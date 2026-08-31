@@ -30,7 +30,7 @@ interface AppProps {
 export function App({ dataState = 'ready', offline = false }: AppProps) {
   return (
     <BrowserRouter>
-      <AppProvider dataState={dataState} offline={offline}>
+      <AppProvider mode="live" dataState={dataState} offline={offline}>
         <Shell />
       </AppProvider>
     </BrowserRouter>);

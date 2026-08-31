@@ -30,6 +30,7 @@ import type {
 '../types';
 import { BackendApiClient } from '../services/backendClient';
 import { mapBackendToFrontendTransaction, mapCanonicalToBackendRequests, type CanonicalSale } from '../services/canonicalTransaction';
+import { LiveMLAdapter, MockMLAdapter, type MLForecast } from '../services/mlAdapter';
 
 /**
  * 'demo' (default, unchanged behavior): mockData + local simulated timers,
@@ -253,9 +254,24 @@ export function AppProvider({ children, dataState, offline, mode = 'demo', backe
     () => empty ? emptyHealth : computeHealth(week, today),
     [empty, week, today]
   );
+
+  const [mlForecast, setMlForecast] = React.useState<MLForecast | null>(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    const adapter = mode === 'live' 
+        ? new LiveMLAdapter(backendUrl ?? DEFAULT_BACKEND_URL) 
+        : new MockMLAdapter();
+    adapter.getForecast().then(f => {
+        if (!cancelled) setMlForecast(f);
+    }).catch(err => {
+        console.error("Failed to fetch ML forecast:", err);
+    });
+    return () => { cancelled = true; };
+  }, [mode, backendUrl, nonce]);
+
   const forecast = React.useMemo(
-    () => empty ? emptyForecast : computeForecast(today, week),
-    [empty, today, week]
+    () => empty ? emptyForecast : computeForecast(today, week, mlForecast),
+    [empty, today, week, mlForecast]
   );
   const insights = React.useMemo(
     () => empty ? [] : buildInsights(today, week, forecast),

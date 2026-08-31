@@ -136,3 +136,130 @@ def get_transaction(transaction_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Transaction not found")
     return txn
 
+
+@router.get("/intelligence/ml2", response_model=schemas.IntelligenceResponse)
+def get_intelligence(
+    merchant_id: str = DEFAULT_MERCHANT_ID,
+    db: Session = Depends(get_db),
+):
+    """
+    Returns the ML-2 intelligence, forecasting, and health data for the merchant.
+    """
+    import sys
+    from pathlib import Path
+    import pandas as pd
+
+    # 1. Fetch transactions and payments
+    txns = crud.get_transactions(db, merchant_id=merchant_id)
+    pays = crud.get_payments(db, merchant_id=merchant_id)
+    
+    ml2_txns = []
+    for t in txns:
+        ml2_txns.append({
+            "transaction_id": t.transaction_id,
+            "merchant_id": t.merchant_id,
+            "customer": t.customer_name,
+            "items": [{"product": t.item, "quantity": t.quantity}],
+            "amount": float(t.amount),
+            "timestamp": t.created_at.isoformat(),
+            "confidence": 1.0
+        })
+        
+    ml2_pays = []
+    for p in pays:
+        if p.matched:
+            ml2_pays.append({
+                "payment_id": p.payment_id,
+                "merchant_id": p.merchant_id,
+                "transaction_id": p.transactions[0].transaction_id if p.transactions else None,
+                "amount": float(p.amount),
+                "timestamp": p.timestamp.isoformat()
+            })
+            
+    # Add ml2 path dynamically and invoke
+    ml2_path = str(Path(__file__).resolve().parent.parent.parent.parent / "ml2")
+    if ml2_path not in sys.path:
+        sys.path.append(ml2_path)
+        
+    try:
+        from features import feature_engine
+        from predict import _most_recent_complete_row
+        from forecasting.predict import load_latest, predict_next_7_days
+    except ImportError as e:
+        print("ImportError loading ML-2:", e)
+        return schemas.IntelligenceResponse(
+            status="error",
+            forecast=schemas.IntelligenceForecast(),
+            health=schemas.IntelligenceHealth(),
+            insights=schemas.IntelligenceInsights()
+        )
+        
+    try:
+        result = feature_engine.generate(transactions=ml2_txns, payments=ml2_pays)
+    except Exception as e:
+        print("Error generating features:", e)
+        return schemas.IntelligenceResponse(
+            status="insufficient_data",
+            forecast=schemas.IntelligenceForecast(),
+            health=schemas.IntelligenceHealth(),
+            insights=schemas.IntelligenceInsights()
+        )
+        
+    features_df = result.features
+    if features_df is None or features_df.empty:
+        return schemas.IntelligenceResponse(
+            status="insufficient_data",
+            forecast=schemas.IntelligenceForecast(),
+            health=schemas.IntelligenceHealth(),
+            insights=schemas.IntelligenceInsights()
+        )
+        
+    features_df = features_df[features_df["merchant_id"] == merchant_id]
+    if features_df.empty:
+        return schemas.IntelligenceResponse(
+            status="insufficient_data",
+            forecast=schemas.IntelligenceForecast(),
+            health=schemas.IntelligenceHealth(),
+            insights=schemas.IntelligenceInsights()
+        )
+        
+    # Get the literal last row for health stats
+    latest_row = features_df.iloc[-1].fillna(value=pd.NA).to_dict()
+    
+    def get_val(val):
+        return None if pd.isna(val) else float(val)
+
+    health = schemas.IntelligenceHealth(
+        revenue_growth_pct=get_val(latest_row.get("revenue_growth_pct")),
+        payment_collection_rate=get_val(latest_row.get("payment_collection_rate")),
+        outstanding_ratio=get_val(latest_row.get("outstanding_ratio")),
+        revenue_volatility_7d=get_val(latest_row.get("revenue_volatility_7d")),
+        payment_reliability=get_val(latest_row.get("payment_reliability"))
+    )
+    
+    insights = schemas.IntelligenceInsights(
+        product_demand=latest_row.get("product_demand", {})
+    )
+    
+    forecast = schemas.IntelligenceForecast()
+    row = _most_recent_complete_row(features_df)
+    if row is not None:
+        try:
+            # Note: models are loaded from ml2/models/ which relies on CWD if not absolute.
+            # load_latest() uses MODELS_DIR = Path(__file__).parent.parent / "models"
+            # which is correctly absolute based on file.
+            model = load_latest()
+            prediction = predict_next_7_days(model, row)
+            forecast.next_7_days_revenue = float(prediction)
+        except Exception as e:
+            print("Error forecasting:", e)
+            pass
+            
+    return schemas.IntelligenceResponse(
+        status="success",
+        forecast=forecast,
+        health=health,
+        insights=insights
+    )
+
+
