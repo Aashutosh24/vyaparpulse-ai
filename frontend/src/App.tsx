@@ -17,6 +17,12 @@ import { CustomerDetail } from './pages/CustomerDetail';
 import { Insights } from './pages/Insights';
 import { Forecast } from './pages/Forecast';
 import { FinancialProfile } from './pages/FinancialProfile';
+// SAKSHAM pages
+import { Recommendation } from './pages/Recommendation';
+import { WhyEvidence } from './pages/WhyEvidence';
+import { EconomicMemory } from './pages/EconomicMemory';
+import { AskSaksham } from './pages/AskSaksham';
+import { ScanEvidence } from './pages/ScanEvidence';
 
 type DataState = 'ready' | 'loading' | 'empty' | 'error';
 
@@ -66,6 +72,12 @@ function Shell() {
                 <Route path="/insights" element={<Insights />} />
                 <Route path="/forecast" element={<Forecast />} />
                 <Route path="/profile" element={<FinancialProfile />} />
+                {/* SAKSHAM routes */}
+                <Route path="/recommendation/:productId" element={<Recommendation />} />
+                <Route path="/why/:productId" element={<WhyEvidence />} />
+                <Route path="/memory" element={<EconomicMemory />} />
+                <Route path="/ask" element={<AskSaksham />} />
+                <Route path="/scan" element={<ScanEvidence />} />
                 <Route path="*" element={<Home />} />
               </Routes>
             </PageTransition>

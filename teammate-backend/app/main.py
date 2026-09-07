@@ -2,22 +2,22 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
-from app.routers import transactions, payments
+from app.routers import transactions, payments, saksham
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="Smart Merchant Payment Detection Backend",
+    title="SAKSHAM — Merchant Intelligence Backend",
     description=(
-        "Detects incoming payment messages (bank/UPI SMS or notifications) "
-        "and matches them against PENDING transactions created by the "
-        "voice-agent module."
+        "VyaparPulse captures what happened. "
+        "SAKSHAM understands what it means — and what the merchant should do next. "
+        "Endpoints: /transactions (ledger + ML bridge), /payments (UPI matching), "
+        "/saksham (economic intelligence: products, inventory, invoices, memory)."
     ),
-    version="1.0.0",
+    version="2.0.0",
 )
 
-# Wide-open CORS since the only client is the merchant's own Flutter app
-# during the hackathon. Tighten this (specific origins) before production.
+# Wide-open CORS for local dev — tighten (specific origins) before production.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -27,8 +27,9 @@ app.add_middleware(
 
 app.include_router(transactions.router)
 app.include_router(payments.router)
+app.include_router(saksham.router)
 
 
 @app.get("/health", tags=["health"])
 def health_check():
-    return {"status": "ok"}
+    return {"status": "ok", "version": "saksham-2.0"}

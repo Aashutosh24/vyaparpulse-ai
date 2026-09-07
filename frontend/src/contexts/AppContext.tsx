@@ -19,10 +19,17 @@ import type {
   BusinessHealth,
   ChangeImpact,
   CustomerAccount,
+  EconomicMemoryEntry,
   ForecastSummary,
   Insight,
   LineItem,
   PaymentEvent,
+  ProductDemandIntel,
+  ReorderRecommendation,
+  SakshamIntent,
+  SakshamResponse,
+  StockoutPrediction,
+  SupplierInvoiceType,
   TodayTotals,
   Transaction,
   TrendPoint,
@@ -31,6 +38,25 @@ import type {
 import { BackendApiClient } from '../services/backendClient';
 import { mapBackendToFrontendTransaction, mapCanonicalToBackendRequests, type CanonicalSale } from '../services/canonicalTransaction';
 import { LiveMLAdapter, MockMLAdapter, type MLForecast } from '../services/mlAdapter';
+// SAKSHAM Economic Engine
+import {
+  DemandEngine,
+  InventoryEngine,
+  StockoutPredictor,
+  ReorderEngine,
+  MarginEngine,
+  analyseProduct,
+  buildEconomicMemory,
+} from '../engine/economicEngine';
+import { IntentEngine } from '../engine/intentEngine';
+import { LocalReasoner } from '../engine/sakshamReasoner';
+import {
+  sakshamProducts,
+  sakshamInventory,
+  supplierPriceHistory,
+  teaDailyHistory,
+  economicChangeSummary,
+} from '../data/sakshamDemoData';
 
 /**
  * 'demo' (default, unchanged behavior): mockData + local simulated timers,
@@ -104,6 +130,22 @@ interface AppContextValue {
   banner: Banner | null;
   impact: ChangeImpact | null;
   lastSale: Transaction | null;
+
+  // ─── SAKSHAM Economic Intelligence ─────────────────────────────
+  /** Demand analysis for all tracked products */
+  productIntel: ProductDemandIntel[];
+  /** Highest-priority stockout — null if none are urgent */
+  topAlert: StockoutPrediction | null;
+  /** Top reorder recommendation — null if no urgent reorders */
+  topRecommendation: ReorderRecommendation | null;
+  /** What changed in this business (economic memory entries) */
+  economicMemory: EconomicMemoryEntry[];
+  /** Supplier invoices added by the merchant (evidence stream) */
+  supplierInvoices: SupplierInvoiceType[];
+  /** Add a supplier invoice to the evidence stream */
+  addSupplierInvoice: (invoice: SupplierInvoiceType) => void;
+  /** Ask SAKSHAM a business question — returns deterministic response */
+  askSaksham: (text: string) => SakshamResponse;
 
   addSale: (input: NewSaleInput) => Transaction;
   resolveReview: (paymentId: string, customerName: string) => void;
@@ -214,6 +256,60 @@ export function AppProvider({ children, dataState, offline, mode = 'demo', backe
   const [healthJustChanged, setHealthJustChanged] = React.useState(false);
   const [nonce, setNonce] = React.useState(0);
   const timers = React.useRef<number[]>([]);
+
+  // ─── SAKSHAM Economic Engine state ────────────────────────────────
+  const [supplierInvoices, setSupplierInvoices] = React.useState<SupplierInvoiceType[]>([]);
+
+  // Run Economic Engine on mount (from demo data, offline, deterministic)
+  const sakshamAnalyses = React.useMemo(() => {
+    const teaDemandHistory = DemandEngine.fromTeaHistory(teaDailyHistory);
+    const teaProduct = sakshamProducts.find((p) => p.id === 'tea')!;
+    const teaStockSnap = sakshamInventory.find((s) => s.productId === 'tea')!;
+    return [analyseProduct(
+      teaProduct,
+      teaDemandHistory,
+      teaStockSnap.quantity,
+      supplierPriceHistory,
+    )];
+  }, []);
+
+  const productIntel = React.useMemo(
+    () => sakshamAnalyses.map((a) => a.demand),
+    [sakshamAnalyses]
+  );
+
+  const topAlert = React.useMemo(() => {
+    const urgent = sakshamAnalyses
+      .map((a) => a.stockout)
+      .filter((s) => s.isUrgent)
+      .sort((a, b) => a.daysUntilStockout - b.daysUntilStockout);
+    return urgent[0] ?? null;
+  }, [sakshamAnalyses]);
+
+  const topRecommendation = React.useMemo(() => {
+    const urgent = sakshamAnalyses
+      .filter((a) => a.recommendation.priority === 'urgent')
+      .sort((a, b) => a.stockout.daysUntilStockout - b.stockout.daysUntilStockout);
+    return urgent[0]?.recommendation ?? null;
+  }, [sakshamAnalyses]);
+
+  const economicMemory = React.useMemo(
+    () => buildEconomicMemory(
+      sakshamAnalyses,
+      economicChangeSummary.revenueGrowthPercent,
+      economicChangeSummary.paymentCollectionChange,
+    ),
+    [sakshamAnalyses]
+  );
+
+  const addSupplierInvoice = React.useCallback((invoice: SupplierInvoiceType) => {
+    setSupplierInvoices((prev) => [invoice, ...prev]);
+  }, []);
+
+  const askSaksham = React.useCallback((text: string): SakshamResponse => {
+    const intent = IntentEngine.extract(text);
+    return LocalReasoner.answer(intent, sakshamAnalyses, economicMemory);
+  }, [sakshamAnalyses, economicMemory]);
 
   // Delayed handlers (the payment lands seconds after the sale) must read the
   // latest ledger, not the one captured when they were created.
@@ -694,6 +790,15 @@ export function AppProvider({ children, dataState, offline, mode = 'demo', backe
     banner,
     impact,
     lastSale,
+
+    // SAKSHAM
+    productIntel,
+    topAlert,
+    topRecommendation,
+    economicMemory,
+    supplierInvoices,
+    addSupplierInvoice,
+    askSaksham,
 
     addSale,
     resolveReview,

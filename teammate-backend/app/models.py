@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, String, Integer, Float, DateTime, Boolean, ForeignKey
+from sqlalchemy import Column, String, Integer, Float, DateTime, Boolean, ForeignKey, Text, JSON
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -59,3 +59,102 @@ class Payment(Base):
     received_at = Column(DateTime(timezone=True), default=utcnow)
 
     transactions = relationship("Transaction", back_populates="payment")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SAKSHAM Economic Intelligence Models
+# ─────────────────────────────────────────────────────────────────────────────
+
+class Product(Base):
+    """Product catalog — selling prices, purchase prices, supplier."""
+    __tablename__ = "products"
+
+    product_id = Column(String, primary_key=True, default=_uuid)
+    merchant_id = Column(String, index=True, nullable=False)
+
+    name = Column(String, nullable=False, index=True)
+    unit = Column(String, nullable=False, default="piece")  # kg, litre, piece, packet, bag
+    category = Column(String, nullable=True)
+
+    selling_price = Column(Float, nullable=False)
+    purchase_price_old = Column(Float, nullable=True)   # before latest supplier change
+    purchase_price_new = Column(Float, nullable=False)  # current purchase price
+    supplier_name = Column(String, nullable=True)
+
+    margin_old = Column(Float, nullable=True)    # % business label
+    margin_new = Column(Float, nullable=False)   # % business label
+
+    safety_stock_days = Column(Float, default=2.0)
+    reorder_unit = Column(Float, default=1.0)  # standard purchase quantity
+
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    inventory_snapshots = relationship("InventorySnapshot", back_populates="product")
+    price_history = relationship("SupplierPriceHistory", back_populates="product")
+
+
+class InventorySnapshot(Base):
+    """Point-in-time stock level for a product."""
+    __tablename__ = "inventory_snapshots"
+
+    snapshot_id = Column(String, primary_key=True, default=_uuid)
+    product_id = Column(String, ForeignKey("products.product_id"), nullable=False, index=True)
+    merchant_id = Column(String, index=True, nullable=False)
+
+    quantity = Column(Float, nullable=False)       # in product's unit
+    source = Column(String, default="manual")      # manual | invoice | estimated
+    notes = Column(String, nullable=True)
+
+    recorded_at = Column(DateTime(timezone=True), default=utcnow, index=True)
+
+    product = relationship("Product", back_populates="inventory_snapshots")
+
+
+class SupplierInvoice(Base):
+    """A supplier invoice — scanned or manually entered.
+    Becomes part of the Business Evidence stream.
+    """
+    __tablename__ = "supplier_invoices"
+
+    invoice_id = Column(String, primary_key=True, default=_uuid)
+    merchant_id = Column(String, index=True, nullable=False)
+
+    supplier_name = Column(String, nullable=False, index=True)
+    invoice_number = Column(String, nullable=True)
+    invoice_date = Column(String, nullable=False)  # ISO date string
+
+    # JSON array of {product_name, quantity, unit, unit_price, total_amount, product_id?}
+    line_items = Column(JSON, nullable=False, default=list)
+    grand_total = Column(Float, nullable=True)
+
+    source = Column(String, default="manual")   # manual | scanned | demo
+    ocr_confidence = Column(Float, nullable=True)   # 0-1, present only for scanned
+    raw_text = Column(Text, nullable=True)          # Raw OCR text for debugging
+
+    added_at = Column(DateTime(timezone=True), default=utcnow, index=True)
+
+    price_history_entries = relationship("SupplierPriceHistory", back_populates="invoice")
+
+
+class SupplierPriceHistory(Base):
+    """Tracks supplier price per product over time.
+    Populated automatically when a SupplierInvoice is processed.
+    """
+    __tablename__ = "supplier_price_history"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    merchant_id = Column(String, index=True, nullable=False)
+
+    supplier_name = Column(String, nullable=False)
+    product_id = Column(String, ForeignKey("products.product_id"), nullable=True, index=True)
+    product_name = Column(String, nullable=False)   # denormalized for resilience
+
+    price_per_unit = Column(Float, nullable=False)
+    unit = Column(String, nullable=False)
+
+    invoice_id = Column(String, ForeignKey("supplier_invoices.invoice_id"), nullable=True)
+    recorded_at = Column(DateTime(timezone=True), default=utcnow, index=True)
+
+    product = relationship("Product", back_populates="price_history")
+    invoice = relationship("SupplierInvoice", back_populates="price_history_entries")

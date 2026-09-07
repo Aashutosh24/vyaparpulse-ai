@@ -91,6 +91,38 @@
   --vp-forecast: #6a4a9c;
   --vp-forecast-soft: #f0eaf9;
   --vp-forecast-line: #d4c4ea;
+
+  /* ---------------------------------------------------------------
+     SAKSHAM tokens — Economic Intelligence layer.
+     --sk-alert:     stockout / critical urgency (deep red)
+     --sk-demand-up: demand rising (growth green)
+     --sk-memory:    economic memory / evidence (deep navy)
+     --sk-scan:      invoice scanning / OCR (warm teal)
+     --------------------------------------------------------------- */
+  --sk-alert: #b91c1c;
+  --sk-alert-soft: #fef2f2;
+  --sk-alert-line: #fecaca;
+  --sk-alert-mid: #ef4444;
+
+  --sk-demand-up: #15803d;
+  --sk-demand-up-soft: #f0fdf4;
+  --sk-demand-up-line: #bbf7d0;
+
+  --sk-demand-down: #92400e;
+  --sk-demand-down-soft: #fffbeb;
+  --sk-demand-down-line: #fde68a;
+
+  --sk-memory: #1e40af;
+  --sk-memory-soft: #eff6ff;
+  --sk-memory-line: #bfdbfe;
+
+  --sk-scan: #0f766e;
+  --sk-scan-soft: #f0fdfa;
+  --sk-scan-line: #99f6e4;
+
+  --sk-neutral: #6b7280;
+  --sk-neutral-soft: #f9fafb;
+  --sk-neutral-line: #e5e7eb;
 }
 :root.dark {
   --background: oklch(0.145 0 0);
