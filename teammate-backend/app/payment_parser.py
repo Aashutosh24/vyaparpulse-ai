@@ -43,16 +43,35 @@ REFERENCE_PATTERN = re.compile(
 
 class ParsedPayment:
     def __init__(self, type_: Optional[str], amount: Optional[float],
-                 timestamp: datetime, reference: Optional[str], raw_message: str):
+                 timestamp: datetime, reference: Optional[str], raw_message: str,
+                 sender_name: Optional[str] = None):
         self.type = type_
         self.amount = amount
         self.timestamp = timestamp
         self.reference = reference
         self.raw_message = raw_message
+        self.sender_name = sender_name
 
     @property
     def is_valid(self) -> bool:
         return self.type is not None and self.amount is not None
+
+
+SENDER_NAME_PATTERNS = [
+    re.compile(r"(?:by\s+vpa\s+[^\s(]+\s*\()([A-Za-z][A-Za-z\s]{1,30})(?:\))", re.IGNORECASE),
+    re.compile(r"(?:from|paid by|transfer from|by transfer from|received from)\s+([A-Za-z][A-Za-z\s]{1,30}?)(?:\s+(?:via|on|ref|upi|to|dated|a/c|acct)|\.|\,|$)", re.IGNORECASE),
+]
+
+
+def _extract_sender_name(message: str) -> Optional[str]:
+    for pat in SENDER_NAME_PATTERNS:
+        match = pat.search(message)
+        if match:
+            candidate = match.group(1).strip()
+            if candidate.lower() not in {"your", "your account", "bank", "upi", "account", "phonepe", "paytm", "gpay"}:
+                return candidate
+    return None
+
 
 
 def _extract_type(message: str) -> Optional[str]:
@@ -119,4 +138,6 @@ def parse_payment_message(message: str, received_at: Optional[datetime] = None) 
         timestamp=_extract_timestamp(message, received_at),
         reference=_extract_reference(message),
         raw_message=message,
+        sender_name=_extract_sender_name(message),
     )
+

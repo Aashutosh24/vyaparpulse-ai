@@ -228,6 +228,7 @@ export function RecordSale() {
           sale={transactions.find((t) => t.id === saved.id) ?? saved}
           offline={offline}
           impact={impact}
+          mode={mode}
           onAnother={reset}
           onLedger={() => navigate('/ledger')} /> :
 
@@ -243,9 +244,10 @@ interface SavedSaleProps {
   impact: ChangeImpact | null;
   onAnother: () => void;
   onLedger: () => void;
+  mode: 'demo' | 'live';
 }
 
-function SavedSale({ sale, offline, impact, onAnother, onLedger }: SavedSaleProps) {
+function SavedSale({ sale, offline, impact, onAnother, onLedger, mode }: SavedSaleProps) {
   const awaiting = sale.status !== 'paid';
   return (
     <div className="space-y-3">
@@ -290,8 +292,9 @@ function SavedSale({ sale, offline, impact, onAnother, onLedger }: SavedSaleProp
             </p>
           </Surface>
           <PrototypeNote>
-            no real UPI feed is connected in this build, so the matching payment is generated here
-            a few seconds after the sale.
+            {mode === 'live'
+              ? 'Backend is running — when a real UPI credit SMS arrives it will be matched automatically. Use "Submit test payment" on the Payments screen to test the matching pipeline.'
+              : 'No real UPI feed is connected. A simulated payment will be generated here a few seconds after the sale to demonstrate the matching journey.'}
           </PrototypeNote>
         </> :
       null}

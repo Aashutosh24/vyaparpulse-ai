@@ -41,3 +41,31 @@ export function initialsOf(name: string): string {
   map((p) => p[0]?.toUpperCase() ?? '').
   join('');
 }
+
+/**
+ * Partial and fuzzy name matching helper.
+ * Allows matching even half/partial names, e.g.:
+ * - "Rahul" matches "Rahul Sharma" (and vice versa)
+ * - "Rahul Sharma" matches "Rahul"
+ * - "Anita" matches "Anita Stores"
+ */
+export function isPartialNameMatch(nameA?: string | null, nameB?: string | null): boolean {
+  if (!nameA || !nameB) return false;
+  const a = nameA.trim().toLowerCase();
+  const b = nameB.trim().toLowerCase();
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.includes(b) || b.includes(a)) return true;
+
+  const tokensA = a.split(/[\s,.-]+/).filter((w) => w.length > 1);
+  const tokensB = b.split(/[\s,.-]+/).filter((w) => w.length > 1);
+  const stopWords = new Set(['mr', 'mrs', 'shri', 'smt', 'dr', 'ji', 'store', 'stores', 'traders', 'kirana']);
+
+  const mA = tokensA.filter((t) => !stopWords.has(t));
+  const mB = tokensB.filter((t) => !stopWords.has(t));
+
+  const setB = new Set(mB.length > 0 ? mB : tokensB);
+  const listA = mA.length > 0 ? mA : tokensA;
+
+  return listA.some((t) => setB.has(t));
+}

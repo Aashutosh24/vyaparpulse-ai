@@ -23,6 +23,7 @@ import { WhyEvidence } from './pages/WhyEvidence';
 import { EconomicMemory } from './pages/EconomicMemory';
 import { AskSaksham } from './pages/AskSaksham';
 import { ScanEvidence } from './pages/ScanEvidence';
+import { PendingTransactions } from './pages/PendingTransactions';
 
 type DataState = 'ready' | 'loading' | 'empty' | 'error';
 
@@ -33,10 +34,25 @@ interface AppProps {
   offline?: boolean;
 }
 
+const DEFAULT_BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL ?? 'http://127.0.0.1:8000';
+
 export function App({ dataState = 'ready', offline = false }: AppProps) {
+  const [mode, setMode] = React.useState<'demo' | 'live'>('demo');
+
+  // Probe the backend once on startup. If it responds, switch to live mode.
+  // If unreachable (backend not started, or missing dependency), stay in demo
+  // mode — the app is fully functional either way.
+  React.useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${DEFAULT_BACKEND_URL}/health`, { signal: controller.signal })
+      .then((r) => { if (r.ok) setMode('live'); })
+      .catch(() => { /* stay in demo mode — backend not up */ });
+    return () => controller.abort();
+  }, []);
+
   return (
     <BrowserRouter>
-      <AppProvider mode="live" dataState={dataState} offline={offline}>
+      <AppProvider mode={mode} dataState={dataState} offline={offline}>
         <Shell />
       </AppProvider>
     </BrowserRouter>);
@@ -78,6 +94,7 @@ function Shell() {
                 <Route path="/memory" element={<EconomicMemory />} />
                 <Route path="/ask" element={<AskSaksham />} />
                 <Route path="/scan" element={<ScanEvidence />} />
+                <Route path="/pending" element={<PendingTransactions />} />
                 <Route path="*" element={<Home />} />
               </Routes>
             </PageTransition>

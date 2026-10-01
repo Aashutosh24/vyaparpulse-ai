@@ -28,24 +28,45 @@ VyaparPulse consists of four deeply integrated systems:
 
 To run the full stack locally or via an Android emulator, you will need Node.js and Python installed.
 
-### 1. Start the Voice Agent
-```bash
-cd teammate-backend/ml2
-# For Windows Powershell:
-$env:PORT="8203"; .\start_backend.bat
-# (Make sure to run pip install -r requirements.txt if running for the first time)
+### ⚡ Quick Start (Recommended)
+Run everything from the project root with one script:
+```powershell
+# From project root (vyaparpulse-ai\)
+.\start_all.bat
 ```
+This automatically starts **both** the Teammate Backend (port 8000) **and** the Voice Agent (port 8203) in separate windows, creating virtual environments and downloading the Vosk model (~40 MB, one time) if needed.
 
-### 2. Start the Teammate Backend & ML Bridge
-```bash
+---
+
+### Manual Setup
+
+#### 1. Start the Teammate Backend & ML Bridge
+```powershell
 cd teammate-backend
-# Activate your virtual environment
+# Create and activate virtual environment (first time only)
+python -m venv venv
 .\venv\Scripts\activate
+pip install -r requirements.txt
 # Start the FastAPI server
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
+API docs: `http://127.0.0.1:8000/docs`
 
-### 3. Start the Frontend (Web)
+#### 2. Start the Voice Agent
+```powershell
+cd voice-agent\backend
+# Create and activate virtual environment (first time only)
+python -m venv venv
+.\venv\Scripts\activate
+pip install -r requirements.txt
+# Download the Vosk model once (~40 MB)
+python scripts\download_model.py en-in
+# Start on port 8203
+$env:PORT="8203"; python run.py
+```
+Voice API: `http://127.0.0.1:8203/docs`
+
+#### 3. Start the Frontend (Web)
 ```bash
 cd frontend
 npm install
@@ -54,6 +75,7 @@ npm run dev
 The app will be available at `http://localhost:5173`.
 
 ---
+
 
 ## 📱 Android Emulator Setup
 

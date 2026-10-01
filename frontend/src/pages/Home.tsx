@@ -92,7 +92,7 @@ export function Home() {
       <HomeHeader />
 
       <div className="space-y-6 px-4">
-        <TodaySummary onPendingClick={() => navigate('/ledger?filter=pending')} />
+        <TodaySummary onPendingClick={() => navigate('/pending')} />
 
         {hasEnoughHistory ?
         <BusinessHealthCard compact onExplain={() => setExplainOpen(true)} /> :

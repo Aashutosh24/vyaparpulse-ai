@@ -4,7 +4,7 @@ import {
   paymentEvents as seedPayments,
   transactions as seedTransactions } from
 '../data/mockData';
-import { formatRupees, initialsOf } from '../utils/format';
+import { formatRupees, initialsOf, isPartialNameMatch } from '../utils/format';
 import {
   buildInsights,
   computeCustomerAccounts,
@@ -498,7 +498,7 @@ export function AppProvider({ children, dataState, offline, mode = 'demo', backe
       const amount = input.items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
       const id = `t-${Date.now()}`;
       const known = seedCustomers.find(
-        (c) => c.name.toLowerCase() === input.customerName.toLowerCase()
+        (c) => isPartialNameMatch(c.name, input.customerName)
       );
       const sale: Transaction = {
         id,
@@ -573,7 +573,13 @@ export function AppProvider({ children, dataState, offline, mode = 'demo', backe
         });
       }
 
-      if (input.method === 'upi' && !offline) {
+      // Demo mode only: simulate the UPI payment arriving a few seconds after
+      // the sale so the full reconciliation journey can be shown end-to-end.
+      // In live mode the real backend does the matching via /payments/raw above;
+      // firing this timer on top would create a phantom "matched" state in local
+      // state before the backend has confirmed anything, causing the ledger to
+      // show the sale as Pending while the banner says Payment Received.
+      if (input.method === 'upi' && !offline && mode === 'demo') {
         const t = window.setTimeout(() => matchPaymentToSale(sale), 3400);
         timers.current.push(t);
       }
@@ -594,7 +600,11 @@ export function AppProvider({ children, dataState, offline, mode = 'demo', backe
       // In live mode, submit a real raw payment to the backend. If the backend
       // auto-matches it, we update the local transaction. If not, we push a
       // needsReview event so the PaymentReview screen can handle it.
-      const message = `₹${open.amount} received from ${open.name}`;
+      // Format as a realistic bank-SMS so payment_parser.py's CREDIT_WORDS and
+      // AMOUNT_PATTERN regexes both match — "received" triggers CREDIT classification,
+      // "Rs." prefix matches AMOUNT_PATTERN, and UPI Ref captures a reference number.
+      const ref = `UPI${Date.now().toString().slice(-8)}`;
+      const message = `Rs.${open.amount} credited to your A/c via UPI from ${open.name}. UPI Ref ${ref}`;
       backendClient
         .submitRawPayment({ message, sender: open.name })
         .then((result) => {
@@ -648,7 +658,7 @@ export function AppProvider({ children, dataState, offline, mode = 'demo', backe
       const current = txnsRef.current;
       const payment = paymentsRef.current.find((p) => p.id === paymentId);
       if (!payment) return;
-      const known = seedCustomers.find((c) => c.name.toLowerCase() === customerName.toLowerCase());
+      const known = seedCustomers.find((c) => isPartialNameMatch(c.name, customerName));
       const target =
       current.find((t) => t.status === 'needsReview' && t.amount === payment.amount) ??
       current.find((t) => t.status === 'needsReview');

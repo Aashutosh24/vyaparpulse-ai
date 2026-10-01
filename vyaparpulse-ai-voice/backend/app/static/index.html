@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Merchant Voice Agent</title>
+<style>
+  :root {
+    --board:      #0d2b26;   /* painted shop board */
+    --board-deep: #081c19;
+    --chalk:      #f4efe2;
+    --chalk-dim:  #a8b8b2;
+    --marigold:   #f2a005;
+    --marigold-d: #c47d00;
+    --rule:       rgba(244,239,226,.14);
+    --paid:       #55c47c;
+    --pending:    #f2a005;
+    --alert:      #e4614a;
+    --display: "Trebuchet MS", "Segoe UI", Tahoma, sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0 0 3rem;
+    background: var(--board);
+    color: var(--chalk);
+    font-family: var(--display);
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    padding: 1.1rem 1.25rem .9rem;
+    border-bottom: 2px solid var(--rule);
+    display: flex; align-items: baseline; gap: .75rem; flex-wrap: wrap;
+  }
+  header h1 {
+    margin: 0; font-size: 1.05rem; letter-spacing: .18em;
+    text-transform: uppercase; font-weight: 700;
+  }
+  .dot { width: .6rem; height: .6rem; border-radius: 50%; background: var(--chalk-dim); display: inline-block; }
+  .dot.armed { background: var(--marigold); }
+  .dot.listening { background: var(--paid); box-shadow: 0 0 0 0 rgba(85,196,124,.7); animation: ping 1.2s infinite; }
+  @keyframes ping { to { box-shadow: 0 0 0 .8rem rgba(85,196,124,0); } }
+  #modeLabel { font-size: .8rem; letter-spacing: .1em; text-transform: uppercase; color: var(--chalk-dim); }
+
+  main { max-width: 62rem; margin: 0 auto; padding: 1.5rem 1.25rem; display: grid; gap: 1.5rem; }
+  @media (min-width: 56rem) { main { grid-template-columns: 20rem 1fr; align-items: start; } }
+
+  /* --- the button ------------------------------------------------- */
+  .console { display: grid; gap: 1rem; justify-items: center; }
+  .mic {
+    width: 12rem; height: 12rem; border-radius: 50%;
+    border: 3px solid var(--marigold);
+    background: radial-gradient(circle at 38% 32%, #163d36, var(--board-deep));
+    color: var(--chalk); font-family: var(--display);
+    font-size: 1rem; letter-spacing: .14em; text-transform: uppercase; font-weight: 700;
+    cursor: pointer; transition: transform .12s ease, background .2s ease;
+    display: grid; place-content: center; gap: .35rem; padding: 1rem;
+    touch-action: none;
+  }
+  .mic small { display: block; font-size: .65rem; letter-spacing: .1em; color: var(--chalk-dim); font-weight: 400; }
+  .mic:active, .mic.recording { transform: scale(.96); background: radial-gradient(circle at 38% 32%, #2a5c4f, #0f3129); }
+  .mic.recording { border-color: var(--paid); }
+  .mic:focus-visible { outline: 3px solid var(--chalk); outline-offset: 4px; }
+
+  .ribbon {
+    min-height: 3.2rem; width: 100%;
+    border-left: 3px solid var(--marigold); padding: .55rem .75rem;
+    background: rgba(0,0,0,.25); font-size: .95rem; line-height: 1.35;
+  }
+  .ribbon em { color: var(--chalk-dim); font-style: normal; }
+
+  .row { display: flex; gap: .5rem; width: 100%; }
+  button.ghost {
+    flex: 1; padding: .6rem .5rem; cursor: pointer;
+    background: transparent; color: var(--chalk); border: 1px solid var(--rule);
+    font-family: var(--display); font-size: .75rem; letter-spacing: .08em; text-transform: uppercase;
+  }
+  button.ghost:hover { border-color: var(--marigold); color: var(--marigold); }
+  button.ghost[aria-pressed="true"] { background: var(--marigold); border-color: var(--marigold); color: var(--board-deep); font-weight: 700; }
+  input[type=text] {
+    flex: 2; padding: .6rem .7rem; background: rgba(0,0,0,.25);
+    border: 1px solid var(--rule); color: var(--chalk); font-family: var(--display); font-size: .9rem;
+  }
+  input[type=text]:focus { outline: 2px solid var(--marigold); outline-offset: 1px; }
+
+  /* --- totals & list ---------------------------------------------- */
+  .totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+  .totals div { background: var(--board); padding: .8rem .9rem; }
+  .totals span { display: block; font-size: .62rem; letter-spacing: .12em; text-transform: uppercase; color: var(--chalk-dim); }
+  .totals strong { font-family: var(--mono); font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+
+  h2 { font-size: .72rem; letter-spacing: .16em; text-transform: uppercase; color: var(--chalk-dim); margin: 1.4rem 0 .6rem; font-weight: 700; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li.txn { display: grid; grid-template-columns: 1fr auto auto; gap: .75rem; align-items: center;
+           padding: .7rem .2rem; border-bottom: 1px solid var(--rule); }
+  li.txn .what { font-size: 1rem; }
+  li.txn .raw { display: block; font-size: .72rem; color: var(--chalk-dim); margin-top: .15rem; }
+  li.txn .amt { font-family: var(--mono); font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+  .tag { font-size: .6rem; letter-spacing: .1em; padding: .2rem .45rem; border: 1px solid currentColor; text-transform: uppercase; }
+  .tag.PENDING { color: var(--pending); }
+  .tag.PAID { color: var(--paid); }
+  .tag.overdue { color: var(--alert); }
+  .settle { background: none; border: 1px solid var(--rule); color: var(--chalk-dim); cursor: pointer; padding: .3rem .5rem; font-size: .62rem; letter-spacing: .08em; text-transform: uppercase; }
+  .settle:hover { color: var(--paid); border-color: var(--paid); }
+  .empty { color: var(--chalk-dim); font-size: .9rem; padding: 1rem .2rem; }
+  .banner { background: var(--alert); color: #150605; padding: .7rem 1rem; font-size: .85rem; }
+  .banner:empty { display: none; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Merchant Voice Agent</h1>
+  <span class="dot" id="dot"></span><span id="modeLabel">connecting</span>
+</header>
+<div class="banner" id="banner"></div>
+
+<main>
+  <section class="console">
+    <button class="mic" id="micBtn">
+      Hold to speak
+      <small id="micHint">or say “Merc”</small>
+    </button>
+
+    <div class="ribbon" id="ribbon"><em>Waiting for the wake word.</em></div>
+
+    <div class="row">
+      <button class="ghost" id="wakeBtn" aria-pressed="true">Wake word on</button>
+      <button class="ghost" id="serverMicBtn">Server mic</button>
+    </div>
+
+    <form class="row" id="typeForm">
+      <input type="text" id="typeInput" placeholder="two samosas fifty rupees" autocomplete="off">
+      <button class="ghost" type="submit">Add</button>
+    </form>
+  </section>
+
+  <section>
+    <div class="totals" id="totals"></div>
+    <h2>Today’s transactions</h2>
+    <ul id="list"><li class="empty">Nothing yet. Speak a sale to start the day.</li></ul>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const rupees = (n) => "₹" + Number(n).toFixed(Number(n) % 1 ? 2 : 0);
+let overdueIds = new Set();
+
+/* ---------- live feed ---------- */
+function connect() {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const ws = new WebSocket(`${proto}://${location.host}/ws`);
+  ws.onmessage = (e) => handle(JSON.parse(e.data));
+  ws.onclose = () => { setMode("off", "disconnected"); setTimeout(connect, 2000); };
+}
+
+function handle(ev) {
+  switch (ev.type) {
+    case "hello":  setStatus(ev.status); paintTotals(ev.summary); break;
+    case "state":  setStatus(ev); break;
+    case "partial": if (ev.text) say(ev.text, true); break;
+    case "heard":  say(ev.text); break;
+    case "wake":   say(ev.text || "listening…"); break;
+    case "listening": setMode("listening", "listening"); say("Listening…", true); break;
+    case "timeout": say(ev.message); setMode("armed", "armed"); break;
+    case "transaction": say(describe(ev.transaction)); refresh(); paintTotals(ev.summary); break;
+    case "cancelled": say("Cancelled the last entry."); refresh(); break;
+    case "deleted":
+    case "status": refresh(); paintTotals(ev.summary); break;
+    case "ignored": say(`Heard “${ev.text}” — ${ev.reason}.`); break;
+    case "error":  $("banner").textContent = ev.message; break;
+  }
+}
+
+const label = (t) => {
+  if (!t.item) return "Unnamed sale";
+  const rate = t.unit_price ? ` @ ${rupees(t.unit_price)}` : "";
+  return `${t.item} ×${t.quantity}${rate}`;
+};
+const describe = (t) => `${label(t)} — ${rupees(t.amount)} pending`;
+
+function say(text, live = false) {
+  $("ribbon").innerHTML = live ? `<em>${escapeHtml(text)}</em>` : escapeHtml(text);
+}
+const escapeHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+
+function setStatus(s) {
+  if (!s) return;
+  setMode(s.mode, s.mode === "off" ? "mic off" : s.mode);
+  $("wakeBtn").setAttribute("aria-pressed", String(!!s.wake_enabled));
+  $("wakeBtn").textContent = s.wake_enabled ? "Wake word on" : "Wake word off";
+  $("micHint").textContent = s.wake_enabled ? `or say “${s.wake_word}”` : "wake word off";
+  $("serverMicBtn").setAttribute("aria-pressed", String(s.mode !== "off"));
+  $("banner").textContent = s.mic_error || (s.speech && !s.speech.ready ? s.speech.error || "" : "");
+}
+
+function setMode(mode, label) {
+  $("dot").className = "dot " + (mode || "");
+  $("modeLabel").textContent = label || mode;
+}
+
+/* ---------- the button: record in the browser, transcribe on the server ---------- */
+let audioCtx, mediaStream, processor, chunks = [], recording = false;
+
+async function startRecording() {
+  if (recording) return;
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true } });
+  } catch (err) {
+    $("banner").textContent = "Microphone blocked. Allow mic access, or use the server mic button.";
+    return;
+  }
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const source = audioCtx.createMediaStreamSource(mediaStream);
+  processor = audioCtx.createScriptProcessor(4096, 1, 1);
+  chunks = [];
+  processor.onaudioprocess = (e) => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+  source.connect(processor);
+  processor.connect(audioCtx.destination);
+  recording = true;
+  $("micBtn").classList.add("recording");
+  say("Recording…", true);
+}
+
+async function stopRecording() {
+  if (!recording) return;
+  recording = false;
+  $("micBtn").classList.remove("recording");
+  const rate = audioCtx.sampleRate;
+  processor.disconnect();
+  mediaStream.getTracks().forEach((t) => t.stop());
+  await audioCtx.close();
+
+  const wav = encodeWav(chunks, rate);
+  if (wav.byteLength < 4000) { say("Too short — hold the button while you speak."); return; }
+
+  say("Transcribing…", true);
+  const body = new FormData();
+  body.append("file", new Blob([wav], { type: "audio/wav" }), "clip.wav");
+  try {
+    const res = await fetch("/api/voice/audio", { method: "POST", body });
+    const data = await res.json();
+    if (!res.ok) { $("banner").textContent = data.detail || "Transcription failed."; return; }
+    if (!data.accepted) say(`Heard “${data.transcript}” — ${data.reason}.`);
+    refresh();
+  } catch (err) {
+    $("banner").textContent = "Could not reach the server.";
+  }
+}
+
+function encodeWav(buffers, rate) {
+  const length = buffers.reduce((n, b) => n + b.length, 0);
+  const pcm = new Int16Array(length);
+  let i = 0;
+  for (const b of buffers) for (const s of b) {
+    const clamped = Math.max(-1, Math.min(1, s));
+    pcm[i++] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff;
+  }
+  const buf = new ArrayBuffer(44 + pcm.length * 2);
+  const view = new DataView(buf);
+  const str = (off, s) => [...s].forEach((c, k) => view.setUint8(off + k, c.charCodeAt(0)));
+  str(0, "RIFF"); view.setUint32(4, 36 + pcm.length * 2, true); str(8, "WAVEfmt ");
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true);
+  view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+  str(36, "data"); view.setUint32(40, pcm.length * 2, true);
+  new Int16Array(buf, 44).set(pcm);
+  return buf;
+}
+
+const mic = $("micBtn");
+mic.addEventListener("pointerdown", (e) => { e.preventDefault(); startRecording(); });
+["pointerup", "pointerleave", "pointercancel"].forEach((e) => mic.addEventListener(e, stopRecording));
+
+/* ---------- controls ---------- */
+$("wakeBtn").onclick = async () => {
+  const on = $("wakeBtn").getAttribute("aria-pressed") === "true";
+  const res = await fetch("/api/voice/wake", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ enabled: !on }),
+  });
+  setStatus(await res.json());
+};
+
+$("serverMicBtn").onclick = async () => {
+  const running = $("serverMicBtn").getAttribute("aria-pressed") === "true";
+  const res = await fetch(running ? "/api/voice/stop" : "/api/voice/start", { method: "POST" });
+  setStatus(await res.json());
+};
+
+$("typeForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const text = $("typeInput").value.trim();
+  if (!text) return;
+  $("typeInput").value = "";
+  const res = await fetch("/api/voice/text", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  const data = await res.json();
+  if (!data.accepted && !data.cancelled) say(`“${text}” — ${data.reason}.`);
+  refresh();
+};
+
+/* ---------- list & totals ---------- */
+async function refresh() {
+  const [txns, sum] = await Promise.all([
+    fetch("/api/transactions").then((r) => r.json()),
+    fetch("/api/summary").then((r) => r.json()),
+  ]);
+  paintTotals(sum);
+  paintList(txns);
+}
+
+function paintTotals(s) {
+  if (!s) return;
+  overdueIds = new Set(s.overdue_ids || []);
+  $("totals").innerHTML = `
+    <div><span>Sales</span><strong>${s.total_transactions}</strong></div>
+    <div><span>Total</span><strong>${rupees(s.total_amount)}</strong></div>
+    <div><span>Paid</span><strong>${rupees(s.paid_amount)}</strong></div>
+    <div><span>Pending</span><strong>${rupees(s.pending_amount)}</strong></div>`;
+}
+
+function paintList(txns) {
+  const list = $("list");
+  if (!txns.length) {
+    list.innerHTML = '<li class="empty">Nothing yet. Speak a sale to start the day.</li>';
+    return;
+  }
+  list.innerHTML = txns.map((t) => {
+    const overdue = t.status === "PENDING" && overdueIds.has(t.id);
+    const when = new Date(t.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return `<li class="txn">
+      <div class="what">${escapeHtml(label(t))}
+        <span class="raw">${when} · ${escapeHtml(t.raw_text || "")}</span></div>
+      <div class="amt">${rupees(t.amount)}</div>
+      <div>
+        <span class="tag ${t.status}${overdue ? " overdue" : ""}">${overdue ? "overdue" : t.status}</span>
+        ${t.status === "PENDING" ? `<button class="settle" data-id="${t.id}">Mark paid</button>` : ""}
+      </div></li>`;
+  }).join("");
+
+  list.querySelectorAll(".settle").forEach((btn) => {
+    btn.onclick = async () => {
+      await fetch(`/api/transactions/${btn.dataset.id}/status`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "PAID" }),
+      });
+      refresh();
+    };
+  });
+}
+
+fetch("/api/status").then((r) => r.json()).then((s) => { setStatus(s.agent); paintTotals(s.summary); });
+refresh();
+setInterval(refresh, 30000);
+connect();
+</script>
+</body>
+</html>
