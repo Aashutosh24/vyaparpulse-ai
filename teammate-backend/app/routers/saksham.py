@@ -16,6 +16,7 @@ The backend stores and retrieves evidence; it does NOT run inference.
 from typing import List, Optional
 from datetime import datetime, timezone
 
+# pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
